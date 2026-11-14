@@ -2,7 +2,7 @@
 
 Local health monitoring MVP based on the supplied challenge brief.
 
-Run with Node.js using `npm start`, then open http://127.0.0.1:4173. No dependency installation is needed. Run checks with `npm test`.
+Run with Node.js using `npm start`, then open http://127.0.0.1:4173. Vendored browser assets are included. Use `npm ci` when updating development dependencies. Run checks with `npm test`.
 
 ## Two pages
 
@@ -41,3 +41,39 @@ Interface cleanup consolidates sleep findings, keeps source metadata expandable,
 The Log button opens #log, a dedicated full history page for the selected astronaut. Original observations, corrections, events and reading reviews appear there with UTC times. Corrections open from the log. The dashboard and profile page link to this log.
 
 Combined five-hazard CSV files are auto-detected by record_type. All 44 columns in data/testing/five-hazards-synthetic.csv are required. Preview shows every field. Import creates mission-scoped crew profiles and stores shared mission records once. IDs, same-mission references, UTC times, units, corrections and duplicate conflicts are validated before atomic save. Existing health CSVs remain supported. Compatible wellbeing and cardiovascular values feed existing trends and demo health rules. Other typed records, procedures, tasks and expected test outcomes are inspectable in Imported mission records in the Log and matching system panels. Radiation dose calculations, cabin exposure episodes, task execution and handoff transmission are separate pending workflows. expected_result rows are test descriptions, never measured results.
+
+## UI refinement preview
+
+The Mediva-inspired overview opens at `/` or `#home`, with direct links to `#dashboard`, `#profile`, and `#log`. The dashboard retains the existing check-ins, CSV import, evidence, reviews, and corrections. Frontend changes preserve form fields, input handlers, domain modules, IndexedDB storage, fixtures, and server behavior. The service-worker cache version is advanced to deliver the new interface. Use `npm start` for the local preview.
+
+Integration baseline: `main` and `ui-refine` both pointed to `25662b4` when this redesign began. The teammate owns forthcoming CSV/manual input changes on `main`; integrate that update and repeat input workflow checks before claiming compatibility with it.
+
+### Full-page reference layout and photography
+
+The overview follows the Mediva full landing-page composition: utility/navigation, gradient hero with three visual panels, four service cards, two alternating photo/text features, four visual health cards, navigation beside a seven-panel gallery, oversized closing callout, and four-column dark footer. Copy and routes use Crew Health's shipped workflows. NASA photos are embedded as optimized JPEG data URLs in CSS so the existing server allowlist and offline file set stay unchanged. Move these to standalone static assets when server asset delivery can be changed.
+
+Photo credits: NASA — [Spinal Ultrasound investigation](https://www.nasa.gov/image-article/astronauts-perform-spinal-ultrasound-investigation/), [Jessica Watkins in the cupola](https://www.nasa.gov/image-article/view-of-earth-from-space-station/), and [Steve Swanson exercising on T2](https://www.nasa.gov/image-article/exercising-t2-treadmill/). Original media URLs:
+- https://www.nasa.gov/wp-content/uploads/2023/03/iss036e035750.jpg
+- https://www.nasa.gov/wp-content/uploads/2023/03/04_iss067e033423.jpg
+- https://www.nasa.gov/wp-content/uploads/2023/03/iss040e086609.jpg
+
+## Homepage motion
+
+Lenis 1.3.27 is pinned in package.json/package-lock.json and vendored from its published ESM distribution into assets/lenis.js with its MIT license. The recommended Lenis stylesheet is included in style.css. No CDN or build step is used. The server change only registers the three new frontend assets in its static allowlist; data handling stays unchanged.
+
+Only the homepage smooths fine-pointer wheel input (lerp 0.1, matching the portfolio reference); touch, reduced-motion users, keyboard navigation, application routes and dialogs retain native scrolling. Section reveals play once while the page remains open, using the portfolio’s 650ms/28px standard reveal and cubic-bezier(0.22, 1, 0.36, 1). Imagery uses its 1500ms sampled spring (stiffness 210, damping 13); grouped photos stagger by 150ms and service cards by 100ms. Headlines use 500ms word entrances staggered by 50ms, adapting the reference’s letter timing for longer health copy. Reduced motion gets a 180ms opacity fade without movement or delay. Keyboard navigation immediately finishes active reveals. Pointer focus leaves unrelated section reveals running. Pointer activation also settles residual scroll inertia; the next wheel gesture resumes smoothing. Navigating away disconnects observers and destroys Lenis.
+
+After `npm ci`, vendor updates use `cp node_modules/lenis/dist/lenis.mjs assets/lenis.js` and `cp node_modules/lenis/LICENSE assets/lenis-LICENSE.txt`; copy the upstream stylesheet into the marked style.css section and advance the service-worker cache version.
+
+### Glass materials
+
+Floating navigation, hero photo overlays and dialogs use distinct translucent material weights, specular edges and restrained shadows. Health reading cards and input controls remain opaque. Browsers without backdrop-filter use solid fallback surfaces. Reduced-transparency and increased-contrast media queries remove blur and make materials solid where supported. Dialog entry uses a short scale/blur materialization; reduced motion retains an opacity-only entry. No extra animation library or backend changes were needed for this refinement.
+
+### Portfolio animation reference
+
+Motion timing and physics were verified against the live [Ted portfolio](https://ted0103.github.io/) JavaScript and CSS, rather than inferred from screenshots. Mediva’s section layout and the glass surfaces remain. The homepage adopts the entrance family and default Lenis wheel feel; scroll-driven project stacking, splash-screen waits, looping stickers, and pointer lenses are not part of this adaptation. Keyboard, touch and reduced-motion paths retain their previous safeguards.
+
+
+### Workspace entrances
+
+Dashboard, Profile & data and Log use 280ms/10px entrances with 40ms staggering capped at 120ms. Heading/panel entrances and the first six log entries orient the reader on route entry; the attention queue and review strip remain immediately visible. Saves, profile switches and body-system selection on the current route do not replay motion. Reduced motion uses a 180ms opacity-only entrance; keyboard navigation skips entrances. Pointer interaction or focus on a control settles in-flight workspace motion. Workspace scrolling remains native.
