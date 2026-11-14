@@ -80,11 +80,12 @@ test('combined fixture imports all records, isolates crew, preserves fields and 
   const rows = await parseCsv(await readFile(new URL('data/testing/five-hazards-synthetic.csv', import.meta.url), 'utf8'));
   const state = { legacy: freshProfile(true) };
   const result = appendHazardCsv(state, rows, 'five.csv');
-  assert.equal(result.added, 66);
-  assert.equal(state._missions['SYNTH-MISSION-01'].records.length, 66);
+  assert.equal(result.added, 142);
+  assert.equal(rows[0].source, 'CSV · Synthetic');
+  assert.equal(state._missions['SYNTH-MISSION-01'].records.length, 142);
   const first = state[result.target];
   assert.equal(first.astronautId, 'A-07');
-  assert.equal(first.records.length, 4);
+  assert.equal(first.records.length, 11);
   assert.ok(first.events.some(event => event.text.includes('dizziness')));
   const second = Object.values(state).find(item => item.astronautId === 'A-08');
   assert.equal(second.records.length, 0);
@@ -120,6 +121,6 @@ test('combined health source correction retires derived values and keeps origina
   const { latest } = await import('./model.js');
   assert.equal(latest(state[target].records, 'sleep').values.sleep, 8);
   assert.ok(state[target].records.some(row => row.retired));
-  assert.equal(state._missions[source.mission_id].records.length, 67);
+  assert.equal(state._missions[source.mission_id].records.length, 143);
   assert.equal(appendHazardCsv(state, rows, 'again.csv').added, 0);
 });

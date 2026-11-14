@@ -581,3 +581,44 @@ html.lenis body {
 }
 
 html:has(dialog[open]) { overflow: hidden; }
+
+.mission-evidence { margin: 18px; font-size: 13px; }
+.mission-evidence dt { color: var(--muted); margin-top: 7px; }
+.mission-evidence dd { margin: 0; overflow-wrap: anywhere; }
+
+.imported-measurement { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.imported-measurement h3 { font-size: 14px; margin-bottom: 7px; }
+
+.bone-marker.pin-review, .bone-marker.pin-urgent {
+  width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0;
+  display: grid; place-items: center; border-radius: 50%; background: transparent; box-shadow: none;
+}
+.bone-marker > span { display: block; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #fff; }
+.bone-marker.pin-review > span { background: #f4bd61; box-shadow: 0 0 0 5px #f4bd612b; }
+.bone-marker.pin-urgent > span { background: #f47988; box-shadow: 0 0 0 5px #f4798840, 0 0 0 8px #f479881a; }
+.bone-marker:hover > span { outline: 2px solid white; outline-offset: 4px; }
+#dialog-body > .alert + .alert { margin-top: 14px; }
+
+.body-pin { position: relative; width: 44px; height: 44px; opacity: 1 !important; z-index: 1; }
+.body-pin.expanded { z-index: 10; }
+.body-callout { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); width: 230px; max-width: 65vw; max-height: 230px; overflow-y: auto; padding: 12px; margin-bottom: 5px; border: 1px solid #8ba7b5; border-radius: 8px; background: #102b3b; color: var(--ink); box-shadow: 0 8px 24px #0008; text-align: left; font-size: 13px; line-height: 1.45; }
+.body-callout[hidden] { display: none; }
+.body-callout p { margin-top: 9px; }
+.body-callout small { font-size: 11px; color: var(--muted); }
+.body-pin.below .body-callout { top: 100%; bottom: auto; margin: 5px 0 0; }
+
+.demo-workspace { margin-top: 22px; }
+.editor-toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 18px 0; }
+#demo-data-form { margin-top: 18px; }
+#demo-data-form details .form-grid { margin-top: 16px; }
+.coverage-checklist { padding: 12px; margin: 14px 0; border: 1px solid var(--line); border-radius: 6px; }
+.coverage-checklist summary { cursor: pointer; color: var(--cyan); }
+.coverage-checklist li { padding: 3px 0; font-size: 13px; }
+.mission-action-history { padding: 18px; border-top: 1px solid var(--line); }
+.mission-action-history p { margin-top: 12px; }
+.radiation-summary { padding: 14px; margin: 12px 0; border-left: 3px solid var(--cyan); background: #102d3b; }
+.radiation-summary strong { font-size: 25px; }
+@media (max-width: 650px) { .editor-toolbar { grid-template-columns: 1fr; gap: 0; } }
+
+.attention-content { grid-template-columns: minmax(0, 1fr); }
+.alert { min-width: 0; overflow-wrap: anywhere; }

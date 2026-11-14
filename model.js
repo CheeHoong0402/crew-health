@@ -160,3 +160,11 @@ export function sevenDayReadings(profile, key) {
     return { day, record: byDay.get(day) };
   });
 }
+
+export function systemMeasurements(records, systemId, astronautId) {
+  const replaced = new Set(records.map(row => row.replaces_id).filter(Boolean));
+  return records.filter(row => (!row.astronaut_id || row.astronaut_id === astronautId) &&
+    row.body_system === systemId && !replaced.has(row.record_id) && row.quality === 'valid' &&
+    ['measurement', 'assessment_result', 'lab_result', 'exercise', 'wellbeing'].includes(row.record_type) &&
+    row.quantity && row.value !== '').sort((a, b) => (a.timestamp_utc || a.interval_end_utc).localeCompare(b.timestamp_utc || b.interval_end_utc));
+}

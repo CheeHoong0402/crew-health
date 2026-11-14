@@ -109,3 +109,18 @@ test('seven-day trends retain zeros and gaps and use corrected daily latest read
   crew.day = 1;
   assert.equal(sevenDayReadings(crew, 'sleep').length, 1);
 });
+
+test('updated mission sample provides valid measurements for every selectable system', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { parseCsv } = await import('./csv.js');
+  const { systemMeasurements, systems } = await import('./model.js');
+  const records = await parseCsv(await readFile(new URL('data/testing/five-hazards-synthetic.csv', import.meta.url), 'utf8'));
+  for (const system of systems) assert.ok(systemMeasurements(records, system.id, 'A-07').length, system.label);
+  assert.equal(systemMeasurements(records, 'kidneys', 'A-08').length, 0);
+  assert.ok(!systemMeasurements(records, 'operations', 'A-07').some(row => row.quality === 'sensor_fault'));
+  const kidney = records.find(row => row.quantity === 'fluid_intake');
+  const corrected = { ...kidney, record_id: 'FIX', replaces_id: kidney.record_id, value: '2000' };
+  const current = systemMeasurements([...records, corrected], 'kidneys', 'A-07');
+  assert.ok(!current.some(row => row.record_id === kidney.record_id));
+  assert.ok(current.some(row => row.record_id === 'FIX'));
+});

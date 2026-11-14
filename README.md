@@ -1,44 +1,78 @@
 # Crew Health
 
-Local health monitoring MVP based on the supplied challenge brief.
+Offline astronaut health monitoring demo based on the supplied challenge brief. Use artificial data for judging. Run `npm start`, then open http://127.0.0.1:4173. No dependency installation is needed. Run `npm test`.
 
 Run with Node.js using `npm start`, then open http://127.0.0.1:4173. Vendored browser assets are included. Use `npm ci` when updating development dependencies. Run checks with `npm test`.
 
-## Two pages
+Use [astronaut-health-data.csv](data/testing/astronaut-health-data.csv). It has **exactly 27 columns: record_id, timestamp and all 25 supported device measurements**. Each row is a timestamp record, and each measurement value appears under its own column. There are no quantity, value, unit, instrument-configuration or workflow columns in the primary template or standard download. Units are fixed in the application, not recorded per row.
 
-**Dashboard** shows the anatomy diagram, system observations, warnings, follow-ups, seven-day trends and read-only observation history. The body system list provides keyboard access to the same regions.
+The example contains 19 unique timestamps and 92 populated measurement cells. Blank cells mean no reading; zero stays zero. The two previous sample filenames, `device-timestamp-synthetic.csv` and `device-observations-synthetic.csv`, now contain this same clean format. Detailed source fixtures are explicitly named `device-timestamp-source-fixture.csv` and `device-observations-legacy.csv` for automated compatibility checks, not for normal input.
 
-**Astronaut profile & data** contains editable personal details, mission context, manual health check-ins, CSV import, symptom reports and audited corrections. Personal details include name, astronaut ID, mission name, crew role, date of birth, height, body mass and blood group. These optional details save with the selected profile.
+For judging, open **Astronaut profile & data → Auto · Import CSV → Try the 7-day sample → Import validated rows**. The dashboard opens a separate fictional crew profile with days 55–61, two short nights, an elevated temperature and a high cabin CO₂ sample. To use your own file, choose it instead. Under **Measurement context**, set the mission, astronaut, cabin and mission day of the latest timestamp. Earlier UTC dates retain their spacing. Choose **Observed mission records** for measured data; observed missions must be separate from synthetic ones.
 
-Previously stored profiles and measurements continue to work. Profiles without personal information start with blank fields. Historical records remain in browser IndexedDB, including data saved by the earlier layout. The dashboard reflects the selected profile's entries immediately.
+For example, a file may include only the measurements it actually supplies:
 
-After the offline cache reports ready, both pages work without the local server. The anterior anatomy illustration was generated with ImageGen. The back view is a schematic locator. The app uses no external fonts, CDNs or runtime APIs. Research links require connectivity.
+```csv
+record_id,timestamp,heart_rate,co2,diastolic_pressure
+RECORD-001,2026-12-03T08:00:00Z,68,1200,76
+RECORD-002,2026-12-03T08:01:00Z,72,1300,78
+```
 
-## CSV input
+Use ISO UTC timestamps with seconds. `CO2` is accepted as an alias for `co2`. Record IDs use 1–60 letters, digits, dots, underscores or hyphens. Combine measurements at each timestamp into one row. A file must contain at least one populated measurement column. All numeric values must be finite nonnegative decimals. UTF-8, quoted cells, BOM and CRLF are supported, with a 1 MiB / 1,000 timestamp-row limit.
 
-On Astronaut profile & data choose **Import CSV**, select a file, review the preview, then import. Files use comma-separated UTF-8 with quoted fields supported, at most 1 MB and 1000 data rows. Required columns are `mission_day,timestamp_utc,phase,data_kind`. Optional columns are `heart_rate_bpm,systolic_mmhg,diastolic_mmhg,temperature_c,sleep_hours,mood,glucose_mgdl,context`. Timestamps use UTC with seconds, such as `2026-11-14T08:10:00Z`. Mark rows `synthetic` or `observed`. Blank measurements remain unavailable. Zero hours of sleep is valid.
+| Measurement column | Fixed unit |
+|---|---|
+| heart_rate | bpm |
+| systolic_pressure | mmHg |
+| diastolic_pressure | mmHg |
+| body_temperature | degC |
+| oxygen_saturation | percent |
+| respiratory_rate | breaths/min |
+| blood_glucose | mg/dL |
+| fluid_intake | mL/24h |
+| urine_specific_gravity | ratio |
+| sleep_hours | h |
+| visual_acuity_decimal | decimal |
+| lumbar_bone_mineral_density | g/cm2 |
+| grip_strength | kgf |
+| completed_duration | min |
+| balance_task_duration | s |
+| white_blood_cell_count | 10^9/L |
+| surface_microbial_count | CFU/cm2 |
+| personal_dose_equivalent | uSv |
+| personal_dose_equivalent_rate | uSv/h |
+| co2 | ppm |
+| cabin_pressure | kPa |
+| cabin_temperature | degC |
+| relative_humidity | percent |
+| sound_level | dBA |
+| illuminance | lux |
 
-All CSV fixtures are stored in `data/testing/`. The included **healthy-data.csv** and **unhealthy-data.csv** each contain seven fictional days. Synthetic files default to a separate test profile with the fictional 7–8 h reference. The healthy example produces no sleep follow-up. The unhealthy example ends with 5.5 h and 5 h and produces the sleep review warning. Other measurements are available for manual trend review.
+**Download device CSV** uses these same 27 columns. It exports supported valid measurements only, omitting faulty/suspect observations rather than presenting them as valid readings. Conflicting values at the same timestamp must be reconciled; multiple astronauts or missions must be exported separately. The full original source records and quality/provenance remain in the app's Log. The clean CSV is a measurement dataset, not an audit backup.
 
-Imports append in one save after all rows pass validation. Re-importing identical records skips duplicates, including records later corrected. Changing CSV values creates additional observations. Use the correction workflow for an audited correction.
+Fixed units are supplied internally when readings are normalized for dashboard evaluation. Point cabin readings can trigger a clearly labeled single-reading warning, but do not establish a sustained interval-average exposure. Simple dose readings remain visible but are excluded from dose totals until separate instrument verification and acquisition history exist. No timing, calibration or counter continuity is fabricated merely to fill a dashboard.
 
-## Prototype limits
+Advanced legacy files with explicit acquisition metadata remain readable for compatibility, including the full-workflow fixture. They are not primary templates. Self-reported mood, available sleep time, symptoms and crew actions remain separate manual inputs. Software rules and procedures stay in `device-config.js`. Synthetic imports create separate scenarios; observed imports preserve their mission identity, deduplicate, and use import time for freshness. Validation is atomic and preserves source row numbers. The parser can still handle audited corrections in advanced source records.
 
-Use fictional demonstration records. Authentication, ground transmission, connected devices, verified clinical alert rules and mission emergency protocols require separate integration before real crew use. The simulated sleep rule supports demonstration and review.
+## Dashboard and action workflows
 
-The redesigned dashboard adds five hazard coverage cards linked to the existing system evidence, plus a clearer attention queue. New health CSV imports retain the source row and import timestamp alongside collection time. Event acknowledgments retain action notes when the case stays open. Dosimetry, habitat, gravity-transition schemas and offline procedure workflows remain planned in AGENTS.md.
+The dashboard integrates warnings with body systems, inline anatomy circles, the attention queue and right-hand readings/trends. Use the system list when WebGL is unavailable. The separate **Log** page retains original observations, corrections, imported evidence and recorded actions.
 
-The anatomy panel uses a local 3D skeleton with rotation, zoom, front/back reset and skeletal markers. Source https://www.innerscene.com/tools/library/3d-parts/full-adult-skeleton-standing-ade55011 (Innerscene, CC0). Google model-viewer 4.1.0 is Apache-2.0 licensed, see assets/model-viewer-LICENSE.txt. The viewer and GLB are cached offline. WebGL is required. Preserve the body-system list for access if rendering fails. This general skeleton is a reference, not a patient scan.
+- **Radiation:** non-overlapping compatible dose segments, continuous-counter differences, interval-average rate integration, spacewalk coverage and recorded mission total. Faults, unverified instrument status and overlaps do not count. The sample spacewalk gives 24 uSv over 120 minutes; removing RAD-GAP-FILL leaves 16 uSv and 80 minutes missing.
+- **Isolation:** sleep compared with opportunity distinguishes schedule limitations from interruptions. Crew check-in requests work independently of mood. Actions and completion persist; restricted support notes and their follow-ups are scoped to the requesting profile and excluded from handoff exports.
+- **Distance:** open a finding's **Review & record action** to read its cached versioned demo procedure, record an action/result and owner, assign a full UTC deadline or complete a task/case. **Prepare ground handoff** saves and downloads a snapshot of explicitly selected source records and the crew question. Delivery remains unconfirmed.
+- **Gravity:** transition corrections recalculate elapsed time to linked symptom onset while retaining the assessment deadline and outcome. The sample correction changes 20 minutes after landing to 10 minutes.
+- **Closed environment:** independent CO2, pressure and temperature interval rules, historical excursions matched by mission/compartment/time, sensor quality and stale-record warnings. Shared cabin episodes remain visible across crew profiles.
 
-The anatomy panel now uses the male Open Anatomy 3D model with selectable bones, skin, muscles and nerves. BodyParts3D © DBCLS, adapted by Open Anatomy 3D, CC BY 4.0. Local changes add colored layer materials and visibility. See assets/anatomy-ATTRIBUTION.md and anatomy-LICENSE.md for full upstream credits. A local meshoptimizer 0.22 decoder (MIT) supports offline loading. The reference anatomy is educational and does not represent patient findings.
+**Mission actions & scenario clock** controls the fictional evaluation time, overdue checks and freshness. Complete coverage means required evidence exists; it does not mean that the astronaut is healthy or that old records establish present conditions. The sample deliberately contains warnings to demonstrate review workflows.
 
-The source nerve layer contains cranial nerves and a short spinal-cord segment. Its view zooms toward the head and labels this limited coverage. Peripheral nerve anatomy is absent from this model.
+## Storage and offline use
 
-Dashboard monitoring now evaluates the latest available reading of every supported health indicator using visible fictional demo rules v1. Findings appear in the queue, matching body region, and system evidence after CSV import, manual save, correction and reload. Review actions retain the source finding, and acknowledgments leave abnormal readings visible. New evidence recalculates the latest-reading findings. The five hazards are integrated as system context and missing-evidence requirements. Personal dosimetry, cabin data, transition exams and ground delivery remain pending. These rules require mission validation for crew use.
+Records, actions and exported snapshots live in browser IndexedDB on this device. The service worker caches code, anatomy, fixtures and procedures. After **Offline cache ready**, the app can reload, edit and save with the local server stopped. Browser data clearing removes local records; there is no cloud database or ground delivery service. Provision the app before disconnecting. A separate tablet requires HTTPS or its own local server for initial setup.
 
-Interface cleanup consolidates sleep findings, keeps source metadata expandable, and limits dashboard activity to five entries. Full history and corrections remain on the data page. Optional medical details and test datasets are collapsible. Select an alert to locate its body system, then use its review action to record a response or schedule a sleep follow-up.
+## Anatomy and limits
 
-The Log button opens #log, a dedicated full history page for the selected astronaut. Original observations, corrections, events and reading reviews appear there with UTC times. Corrections open from the log. The dashboard and profile page link to this log.
+Local Open Anatomy 3D male reference anatomy supports overlapping skin, muscles, bones, organs, vessels and nerves, with separate visibility/opacity and default reset. BodyParts3D © DBCLS, adapted by Open Anatomy 3D, CC BY 4.0. See `assets/anatomy-ATTRIBUTION.md`. The source nerve layer contains cranial nerves and a short spinal segment, not the full peripheral nervous system. Model-viewer and meshoptimizer run locally. WebGL is required for 3D.
 
 Combined five-hazard CSV files are auto-detected by record_type. All 44 columns in data/testing/five-hazards-synthetic.csv are required. Preview shows every field. Import creates mission-scoped crew profiles and stores shared mission records once. IDs, same-mission references, UTC times, units, corrections and duplicate conflicts are validated before atomic save. Existing health CSVs remain supported. Compatible wellbeing and cardiovascular values feed existing trends and demo health rules. Other typed records, procedures, tasks and expected test outcomes are inspectable in Imported mission records in the Log and matching system panels. Radiation dose calculations, cabin exposure episodes, task execution and handoff transmission are separate pending workflows. expected_result rows are test descriptions, never measured results.
 

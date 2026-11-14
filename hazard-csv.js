@@ -10,9 +10,9 @@ const units = {
   visual_acuity_decimal: 'decimal', lumbar_bone_mineral_density: 'g/cm2',
   grip_strength: 'kgf', completed_duration: 'min', sound_level: 'dBA',
   illuminance: 'lux', relative_humidity: 'percent',
-  surface_microbial_count: 'CFU/cm2', white_blood_cell_count: '10^9/L'
+  surface_microbial_count: 'CFU/cm2', white_blood_cell_count: '10^9/L', fluid_intake: 'mL/24h', urine_specific_gravity: 'ratio', blood_glucose: 'mg/dL', body_temperature: 'degC', balance_task_duration: 's', oxygen_saturation: 'percent', respiratory_rate: 'breaths/min'
 };
-const healthKeys = { heart_rate: 'pulse', systolic_pressure: 'systolic', diastolic_pressure: 'diastolic', sleep_hours: 'sleep', mood: 'mood' };
+const healthKeys = { heart_rate: 'pulse', systolic_pressure: 'systolic', diastolic_pressure: 'diastolic', sleep_hours: 'sleep', mood: 'mood', blood_glucose: 'glucose', body_temperature: 'temperature' };
 const utcFields = hazardColumns.filter(key => key.endsWith('_utc'));
 const numeric = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
 function validUtc(value) {
@@ -70,7 +70,9 @@ export function parseHazardRows(headers, rows) {
         if (['sleep_hours', 'sleep_opportunity_hours'].includes(row.quantity) && +row.value > 24) throw Error('Sleep durations must be at most 24 hours.');
         if (row.quantity === 'relative_humidity' && +row.value > 100) throw Error('Humidity must be at most 100 percent.');
       }
-      if (row.record_type === 'measurement' && !['point_sample', 'interval_average', 'interval_dose', 'interval_average_rate', 'cumulative_counter', ''].includes(row.reading_type)) throw Error('Invalid reading_type.');
+      if (row.record_type === 'measurement' && !['point_sample', 'interval_average', 'interval_dose', 'interval_average_rate', 'cumulative_counter', 'previous_24_hours', ''].includes(row.reading_type)) throw Error('Invalid reading_type.');
+      if (row.record_type !== 'demo_rule' && row.quantity === 'personal_dose_equivalent' && !['point_sample', 'interval_dose', 'cumulative_counter'].includes(row.reading_type)) throw Error('Personal dose needs interval_dose or cumulative_counter.');
+      if (row.record_type !== 'demo_rule' && row.quantity === 'personal_dose_equivalent_rate' && !['point_sample', 'interval_average_rate'].includes(row.reading_type)) throw Error('Dose rate needs interval_average_rate.');
       if (row.reading_type === 'cumulative_counter' && (!row.counter_session || !row.timestamp_utc)) throw Error('Counter requires a session and timestamp.');
       if (['task', 'assessment_task'].includes(row.record_type) && (!row.owner_id || !row.due_at_utc || !row.status)) throw Error('Task requires owner, UTC deadline and status.');
       if (row.record_type === 'gravity_transition' && (!row.timestamp_utc || !row.from_environment || !row.to_environment)) throw Error('Transition needs time and environments.');
@@ -78,7 +80,7 @@ export function parseHazardRows(headers, rows) {
       const id = identity(row);
       if (seen.has(id) && seen.get(id) !== signature(row)) throw Error('Conflicting record_id in file.');
       seen.set(id, signature(row));
-      return { ...row, format: 'hazards', id, day: +row.mission_day, time: row.timestamp_utc || row.interval_end_utc || row.imported_at_utc, source: row.data_kind === 'synthetic' ? 'CSV Ãƒâ€šÃ‚Â· Synthetic' : 'CSV Ãƒâ€šÃ‚Â· Observed', values: {}, importRow: index + 2 };
+      return { ...row, format: 'hazards', id, day: +row.mission_day, time: row.timestamp_utc || row.interval_end_utc || row.imported_at_utc, source: row.data_kind === 'synthetic' ? 'CSV · Synthetic' : 'CSV · Observed', values: {}, importRow: index + 2 };
     } catch (error) { throw Error('CSV row ' + (index + 2) + ': ' + error.message); }
   });
 }
@@ -133,7 +135,9 @@ export function appendHazardCsv(state, records, filename) {
       const profile = structuredClone(state[key] || freshProfile(false));
       profile.missionId = missionId;
       profile.astronautId = crew.record_id;
-      profile.label = (crew.data_kind === 'synthetic' ? 'Synthetic Ãƒâ€šÃ‚Â· ' : '') + missionId + ' Ãƒâ€šÃ‚Â· ' + crew.record_id;
+      profile.label = (crew.data_kind === 'synthetic' ? 'Synthetic · ' : '') + missionId + ' · ' + crew.record_id;
+      if (!profile.baseline && all.every(row => row.data_kind === 'synthetic')) profile.baseline = { low: 7, high: 8, source: 'Fictional demo sleep reference' };
+      if (current.some(row => row.astronaut_id === crew.record_id && row.record_type === 'gravity_transition' && /mars|moon/.test(row.to_environment))) profile.phase = 'Surface';
       profile.personal ||= {};
       profile.personal.astronautId = crew.record_id;
       profile.personal.missionName = missionId;
@@ -154,7 +158,7 @@ export function appendHazardCsv(state, records, filename) {
         // Partial cuffs stay available as raw evidence until both pressures are present.
         if ((values.systolic === undefined) !== (values.diastolic === undefined)) { delete values.systolic; delete values.diastolic; }
         if (!Object.keys(values).length) continue;
-        const record = { id, hazardProjection: true, day: first.day, time: first.timestamp_utc, phase: profile.phase, source: first.source, values, importFile: filename, importedAt: now, importRow: first.importRow, context: [first.posture, first.activity, first.text].filter(Boolean).join(' Ãƒâ€šÃ‚Â· '), related: group.map(row => row.record_id).join('|') };
+        const record = { id, hazardProjection: true, day: first.day, time: first.timestamp_utc, phase: profile.phase, source: first.source, values, importFile: filename, importedAt: now, importRow: first.importRow, context: [first.posture, first.activity, first.text].filter(Boolean).join(' · '), related: group.map(row => row.record_id).join('|') };
         validateRecord(record);
         profile.records.push(record);
       }
@@ -168,7 +172,7 @@ export function appendHazardCsv(state, records, filename) {
         const id = 'hazard-event-' + row.id;
         if (!profile.events.some(event => event.id === id)) profile.events.push({ id, hazardSource: row.id, system: row.body_system || 'operations', text: row.text || row.record_type, time: row.timestamp_utc || row.reported_at_utc, day: row.day, urgent: row.record_type === 'incident', owner: row.owner_id || 'Crew medical officer', outcome: '', acknowledged: '' });
       }
-      profile.day = Math.max(profile.day, ...personal.map(row => row.day));
+      profile.day = Math.max(state[key]?.day || 1, ...personal.map(row => row.day));
       profiles[key] = profile;
     }
   }

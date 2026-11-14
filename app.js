@@ -1,8 +1,11 @@
+import { appendDeviceCsv, deviceColumns, deviceRequired, deviceUnits } from './device-csv.js';
+import { mountDemoEditor } from './demo-editor.js';
+import { currentMissionRows, missionCsv, separateDemo, scenarioTime, demoCoverage, analyseMission, evaluateMission, recordMissionAction, handoffSnapshot } from './mission-demo.js';
 import { updateMotion } from './motion.js';
 import { appendHazardCsv, hazardColumns } from './hazard-csv.js';
 import './assets/model-viewer.min.js';
 customElements.get('model-viewer').meshoptDecoderLocation = new URL('./assets/meshopt_decoder.js', import.meta.url).href;
-import { metrics, systems, sources, freshProfile, latest, currentRecords, sleepFlag, validateRecord, validatePersonal, updateEvent, openRegionEvents, readingFindings, demoRules, addObservation, reviewFinding, sevenDayReadings } from './model.js';
+import { metrics, systems, sources, freshProfile, latest, currentRecords, sleepFlag, validateRecord, validatePersonal, updateEvent, openRegionEvents, readingFindings, demoRules, addObservation, reviewFinding, sevenDayReadings, systemMeasurements } from './model.js';
 import { parseCsv, appendCsv, csvTestProfile, csvLimit } from './csv.js';
 
 const $ = selector => document.querySelector(selector);
@@ -31,6 +34,7 @@ const regionPositions = {
   eyes: '0.03m 1.62m 0.075m', head: '0m 1.67m 0.05m',
   spine: '0m 1.12m -0.06m', limbs: '0.11m 0.59m 0.03m',
   sleep: '0m 1.72m 0.05m',
+  exposure: '-0.28m 1.45m 0.04m',
   skin: '-0.24m 1.12m 0.03m'
 };
 let db;
@@ -107,7 +111,7 @@ function render() {
       <div><span class="eyebrow">Your crew health workspace</span><h1>${page === 'dashboard' ? 'Health dashboard' : page === 'log' ? 'Activity log' : 'Astronaut profile & data'}</h1><p>${escape(data.personal?.name || 'Crew member')} ${escape(data.personal?.astronautId || 'A-07')} <span class="separator">/</span> Day ${data?.day ?? profile().day} <span class="separator">/</span> ${escape(data?.phase ?? profile().phase)}</p></div>
       <div class="mission-controls"><label class="small">Profile <select id="astronaut-profile">${Object.entries(state).filter(([, data]) => Array.isArray(data?.records)).map(([key, data]) => '<option value="' + key + '" ' + (key === profileKey ? 'selected' : '') + '>' + escape(data.label || (key === 'demo' ? 'Simulated mission' : 'Manual entries')) + '</option>').join('')}</select></label><span class="connection"><i></i>${navigator.onLine ? 'Local workspace' : 'Offline'}</span><span class="small muted">${storageReady ? 'Stored on this device' : 'Storage unavailable'}</span></div>
     </section>
-    <div class="workspace-note"><span>${escape(data.label || (profileKey === 'demo' ? 'Simulated mission data' : 'Manual entries'))} · ${data.records.length} recorded entries</span></div>
+    <div class="workspace-note"><span>${escape((data.missionId ? data.missionId + ' · ' + data.astronautId : data.label) || (profileKey === 'demo' ? 'Simulated mission data' : 'Manual entries'))} · ${data.records.length} recorded entries</span></div>
     ${page === 'dashboard' ? dashboard(data) : page === 'log' ? logPage(data) : personalPage(data)}
   `;
   bindDashboard();
@@ -160,7 +164,37 @@ function uiIcon(name) {
 }
 
 
-function systemContext(id) {
+function missionFor(data) { return state._missions?.[data.missionId]; }
+function allFindings(data) {
+  const missionFindings = evaluateMission(missionFor(data), data);
+  const hasSleepOpportunity = missionFindings.some(item => item.id.startsWith('mission-sleep-'));
+  return [...missionFindings, ...readingFindings(data).filter(item => !(hasSleepOpportunity && item.key === 'sleep'))].sort((a, b) => Number(b.urgent || false) - Number(a.urgent || false));
+}
+function visibleEvents(data, systemId) {
+  const mission = missionFor(data);
+  const findings = evaluateMission(mission, data);
+  return data.events.filter(event => !event.outcome && (!systemId || event.system === systemId)).filter(event => {
+    if (!event.hazardSource || !mission) return true;
+    const sourceId = event.hazardSource.split('/').at(-1);
+    if (mission.actions?.['task-' + sourceId]?.status === 'completed') return false;
+    return !findings.some(finding => finding.system === event.system && finding.evidenceIds.includes(sourceId));
+  });
+}
+async function changeMission(edit) {
+  if (busy) throw Error('A save is in progress.');
+  const missionId = profile().missionId;
+  if (!missionId || !state._missions?.[missionId]) throw Error('Create or import a complete demo dataset first.');
+  busy = true;
+  try {
+    const next = structuredClone(state);
+    edit(next._missions[missionId]);
+    await commit(next);
+  } finally { busy = false; }
+}
+function systemContext(id, data) {
+  const rows = importedMissionRows(data);
+  if (rows.some(row => row.body_system === id)) return '<h3>Mission evidence</h3><p>Imported observations are available above. Open Source details for collection method, status and original records.</p>';
+
   if (id === 'exposure') return '<h3>Space radiation</h3><p>Personal dosimetry and spacewalk intervals are required. Dose coverage is unavailable.</p>';
   if (id === 'operations') return '<h3>Hostile / closed environment</h3><p>Cabin CO₂, pressure, temperature and compartment logs are unavailable.</p><h3>Distance from Earth</h3><p>Records and crew actions save locally for offline review. Ground receipt is unconfirmed.</p>';
   if (id === 'sleep') return '<h3>Isolation & confinement</h3><p>Review sleep, mood and shift context together. Record a support request even with no measurements.</p>';
@@ -182,22 +216,29 @@ function findingCard(finding, data) {
   const record = finding.record;
   const flag = finding.key === 'sleep' ? sleepFlag(data) : null;
   const task = finding.key === 'sleep' ? data.followups.find(item => item.type === 'sleep' && item.day === data.day) : null;
-  return `<article class="alert watch reading-finding" data-locate="${finding.system}" tabindex="0" aria-label="${escape(finding.label)}; select to locate body system"><span class="status-label">${finding.review ? 'Reviewed · Reading still outside demo reference' : '△ Reading review'}</span><h3>${escape(finding.label)}</h3><p class="finding-value">${escape(finding.value)} <small>${metrics[finding.key]?.unit || ''}</small></p><p class="small">Demo reference · ${escape(finding.reference)}</p><p class="small muted">${utc(record.time)}</p>${flag ? '<p class="small">Two consecutive short nights · Day ' + flag.previous.day + ': ' + flag.previous.values.sleep + ' h · Day ' + flag.current.day + ': ' + flag.current.values.sleep + ' h</p>' : ''}${task ? '<p class="small">' + (task.outcome ? 'Follow-up completed' : 'Follow-up due day ' + task.due) + '</p>' : ''}${sourceDetails(record, finding.rule)}<p class="owner">${finding.review ? 'Crew review recorded' : 'Awaiting crew review'}</p><button data-finding="${finding.id}" class="wide">Review & record action</button></article>`;
+  return `<article class="alert ${finding.urgent ? 'urgent' : 'watch'} reading-finding" data-locate="${finding.system}" tabindex="0" aria-label="${escape(finding.label)}; select to locate body system"><span class="status-label">${finding.missionFinding ? (finding.review ? 'Action recorded · Mission finding' : (finding.urgent ? 'Act now · Mission finding' : 'Mission review')) : (finding.review ? 'Reviewed · Reading still outside demo reference' : '△ Reading review')}</span><h3>${escape(finding.label)}</h3><p class="finding-value">${escape(finding.value)} <small>${finding.unit || metrics[finding.key]?.unit || ''}</small></p><p class="small">Demo reference · ${escape(finding.reference)}</p><p class="small muted">${utc(record.time)}</p>${flag ? '<p class="small">Two consecutive short nights · Day ' + flag.previous.day + ': ' + flag.previous.values.sleep + ' h · Day ' + flag.current.day + ': ' + flag.current.values.sleep + ' h</p>' : ''}${task ? '<p class="small">' + (task.outcome ? 'Follow-up completed' : 'Follow-up due day ' + task.due) + '</p>' : ''}${finding.detail ? '<p class="small">' + escape(finding.detail) + '</p>' : ''}${sourceDetails(record, finding.rule)}<p class="owner">${finding.review ? 'Crew review recorded' : 'Awaiting crew review'}</p><button data-finding="${finding.id}" class="wide">Review & record action</button></article>`;
 }
 
 function bodyMarkers(data) {
   return systems.filter(system => regionPositions[system.id]).map(system => {
-    const events = [...openRegionEvents(data, system.id), ...readingFindings(data).filter(item => item.system === system.id)];
-    const urgent = events.some(event => event.urgent);
-    const severity = urgent ? 'Urgent' : 'Review';
-    if (!events.length) return '';
-    const label = severity + ' · ' + system.label + ' (' + events.length + ')';
-    return '<button slot="hotspot-' + system.id + '" class="bone-marker ' + (events.length ? (urgent ? 'pin-urgent' : 'pin-review') : '') + '" data-position="' + regionPositions[system.id] + '" data-system="' + system.id + '" aria-label="' + label + '">' + label + '</button>';
+    const reports = visibleEvents(data, system.id);
+    const findings = allFindings(data).filter(item => item.system === system.id);
+    if (!reports.length && !findings.length) return '';
+    const urgent = reports.some(event => event.urgent);
+    const label = (urgent ? 'Urgent' : 'Review') + ' · ' + system.label;
+    const panelId = 'body-conditions-' + system.id;
+    const below = ['head', 'eyes', 'sleep'].includes(system.id);
+    return '<div slot="hotspot-' + system.id + '" class="body-pin ' + (below ? 'below' : '') + '" data-position="' + regionPositions[system.id] + '">' +
+      '<button class="bone-marker ' + (urgent ? 'pin-urgent' : 'pin-review') + '" data-body-alert="' + system.id + '" aria-label="' + label + '" aria-expanded="false" aria-controls="' + panelId + '"><span aria-hidden="true"></span></button>' +
+      '<div class="body-callout" id="' + panelId + '" role="region" aria-label="' + system.label + ' conditions" hidden><strong>' + escape(system.label) + '</strong>' +
+      reports.map(event => '<p><b>' + (event.urgent ? 'Urgent' : 'Review') + '</b> · ' + escape(event.text) + '</p>').join('') +
+      findings.map(finding => '<p>' + escape(finding.label) + '<br><b>' + escape(finding.value) + ' ' + (finding.unit || metrics[finding.key]?.unit || '') + '</b><br><small>Demo reference · ' + escape(finding.reference) + '</small></p>').join('') +
+      '</div></div>';
   }).join('');
 }
 
 function dashboard(data) {
-  const pendingCount = readingFindings(data).filter(item => !item.review).length;
+  const pendingCount = allFindings(data).filter(item => !item.review).length;
   const system = systems.find(item => item.id === selected);
   return `
     <section class="review-strip"><div><strong>${pendingCount} reading${pendingCount === 1 ? '' : 's'} to review</strong><span>Latest available observations · Demo rules v1</span><details class="rule-reference"><summary>View alert thresholds</summary><p>Fictional demo references, inclusive boundaries. Outside these ranges prompts review.</p><ul>${Object.entries(demoRules).map(([key, rule]) => '<li>' + (metrics[key]?.label || 'Mood') + ' · ' + (key === 'mood' ? 'Low or Very low' : (key === 'sleep' ? (data.baseline?.low ?? rule.low) + '–' + (data.baseline?.high ?? rule.high) : rule.low + '–' + rule.high) + ' ' + metrics[key].unit) + '</li>').join('')}</ul></details></div><div class="input-actions"><button data-open-log>Log</button><button id="quick-checkin" class="primary">＋ Record check-in</button></div></section>
@@ -220,19 +261,19 @@ function dashboard(data) {
         </div>
       </section>
       <section class="panel evidence"><details class="system-menu"><summary><span>Review body system</span><strong role="heading" aria-level="2">${system.label}</strong></summary><div class="system-list" aria-label="Body system selection">${systems.map(item => '<button data-system="' + item.id + '" aria-pressed="' + (item.id === selected) + '">' + item.label + '</button>').join('')}</div></details>
-        <div class="evidence-body">${openRegionEvents(data, system.id).map(event => `<div class="region-event"><strong>${event.urgent ? 'Urgent' : 'Review'} · ${escape(event.text)}</strong><p>${utc(event.time)} · Crew report</p><button data-event="${escape(event.id)}">Open event & record action</button></div>`).join('')}${system.keys.length ? system.keys.map(key => {
+        <div class="evidence-body">${visibleEvents(data, system.id).map(event => `<div class="region-event"><strong>${event.urgent ? 'Urgent' : 'Review'} · ${escape(event.text)}</strong><p>${utc(event.time)} · Crew report</p><button data-event="${escape(event.id)}">Open event & record action</button></div>`).join('')}${system.keys.length ? system.keys.map(key => {
           const record = latest(data.records, key);
-          const finding = readingFindings(data).find(item => item.key === key);
+          const finding = allFindings(data).find(item => item.key === key);
           return '<div class="reading"><span>' + (metrics[key]?.label || 'Mood') + '</span><strong>' + valueOf(data, key) + '</strong></div>' +
             (finding ? '<button class="reading-badge" data-finding="' + finding.id + '">' + (finding.review ? 'Reviewed' : 'Review reading') + '</button>' : '') +
             (record ? '<p class="small muted">' + utc(record.time) + '</p>' : '') + trendChart(data, key) + (record ? sourceDetails(record) : '');
-        }).join('') : '<div class="unavailable">○ No exam on file</div>'}
-        ${missionEvidence(data, selected)}<p class="evidence-explanation">${system.evidence}</p>
+        }).join('') : ''}
+        ${systemMeasurementPanel(data, selected)}${missionEvidence(data, selected)}<p class="evidence-explanation">${system.evidence}</p>
         <details><summary>Associated research risks</summary><ul>${system.risks.map(risk => '<li>' + risk + '</li>').join('')}</ul><a href="${sources[1][1]}" target="_blank" rel="noreferrer">NASA risk reference ↗</a></details>
         <button id="history" class="wide">View observations & trends</button>
         <button id="report" class="subtle wide">＋ Record symptom or event</button>
         </div>
-        <div class="exposure">${systemContext(system.id)}</div>
+        <div class="exposure">${systemContext(system.id, data)}${missionStatus(data)}</div>
       </section>
     </div>
 
@@ -260,14 +301,14 @@ function personalPage(data) {
         </details><p class="form-error" role="alert"></p><button type="submit" class="primary">Save personal information</button>
       </form>
     </section>
-    <section class="panel data-input"><div class="panel-heading"><h2>CSV & crew observations</h2></div>
-      <div class="evidence-body"><p>Import readings or record a check-in.</p>
-        <button id="import-csv" class="primary wide">Import CSV</button><button id="checkin" class="wide">＋ Record check-in</button><button id="report" class="subtle wide">＋ Record symptom or event</button>
+    <section class="panel data-input"><div class="panel-heading"><h2>Data input</h2></div>
+      <div class="evidence-body"><p>Enter complete artificial device data manually or import a complete CSV.</p>
+        <button id="open-manual-demo" class="primary wide">Manual · Edit complete example</button><button id="import-csv" class="wide">Auto · Import CSV</button><details class="profile-mission"><summary>Quick health check-in</summary><button id="checkin" class="wide">＋ Record check-in</button></details><button id="report" class="subtle wide">＋ Record symptom or event</button>
         <div class="profile-mission"><h3>Mission context</h3><p>Day ${data.day} · ${escape(data.phase)}</p><p class="small muted">${escape(personal.missionName || 'Mission name not recorded')}</p><button id="mission" class="wide">Edit mission day & phase</button></div>
-        <details class="profile-mission"><summary>Test datasets</summary><p class="small muted">Seven synthetic days per scenario. Test files open in separate profiles.</p><p><a href="data/testing/healthy-data.csv" download>Healthy data</a> · <a href="data/testing/unhealthy-data.csv" download>Unhealthy data</a> · <a href="data/testing/five-hazards-synthetic.csv" download>Five-hazard mission</a></p></details>
+        <details class="profile-mission"><summary>Test datasets</summary><p class="small muted">Seven synthetic days per scenario. Test files open in separate profiles.</p><p><a href="data/testing/healthy-data.csv" download>Healthy data</a> · <a href="data/testing/unhealthy-data.csv" download>Unhealthy data</a> · <a href="data/testing/astronaut-health-data.csv" download>Device observation sample</a></p></details>
       </div>
     </section>
-  </div>`;
+  </div><section class="panel demo-workspace"><div class="panel-heading"><h2>Complete data entry</h2></div><div class="evidence-body"><p>Enter measurements, exam results, symptoms and observations. The complete artificial example is ready to edit and save as a separate demo dataset.</p><div id="demo-editor"><p>Loading the complete example…</p></div></div></section>${missionControls(data)}`;
 }
 async function savePersonal(event) {
   event.preventDefault();
@@ -286,14 +327,39 @@ async function savePersonal(event) {
   }
 }
 function attention(data) {
-  const events = data.events.filter(event => !event.outcome);
-  return '<div class="attention-content">' + readingFindings(data).map(finding => findingCard(finding, data)).join('') + events.map(event => `<article class="alert ${event.urgent ? 'urgent' : 'watch'}"><span class="status-label">${event.urgent ? '⬣ Act now' : '△ Review'}</span><h3>${escape(event.text)}</h3><p class="small">Crew report · ${utc(event.time)}</p><span class="evidence-tag">Self-reported · Sensor evidence unavailable</span><p class="owner">${escape(event.owner)} · ${event.urgent ? 'Now' : 'Review requested'}</p>${event.acknowledged ? '<p class="small muted">Acknowledged ' + utc(event.acknowledged) + '</p>' : ''}${'<button data-event="' + event.id + '" class="wide">Open event & onboard guidance</button>'}</article>`).join('') +
-    (!events.length && !readingFindings(data).length && !data.followups.some(task => !task.outcome) ? '<div class="quiet"><h3>No open action flags</h3><p>Review available observations and scheduled follow-ups. Unmeasured systems remain unassessed.</p></div>' : '') +
+  const events = visibleEvents(data);
+  return '<div class="attention-content">' + allFindings(data).map(finding => findingCard(finding, data)).join('') + events.map(event => `<article class="alert ${event.urgent ? 'urgent' : 'watch'}"><span class="status-label">${event.urgent ? '⬣ Act now' : '△ Review'}</span><h3>${escape(event.text)}</h3><p class="small">Crew report · ${utc(event.time)}</p><span class="evidence-tag">Self-reported · Sensor evidence unavailable</span><p class="owner">${escape(event.owner)} · ${event.urgent ? 'Now' : 'Review requested'}</p>${event.acknowledged ? '<p class="small muted">Acknowledged ' + utc(event.acknowledged) + '</p>' : ''}${'<button data-event="' + event.id + '" class="wide">Open event & onboard guidance</button>'}</article>`).join('') +
+    (!events.length && !allFindings(data).length && !data.followups.some(task => !task.outcome) ? '<div class="quiet"><h3>No open action flags</h3><p>Review available observations and scheduled follow-ups. Unmeasured systems remain unassessed.</p></div>' : '') +
     data.followups.map(task => '<div class="task"><strong>' + escape(task.title) + '</strong><p class="small">Due day ' + task.due + ' · ' + (task.outcome ? 'Closed · ' + escape(task.outcome) : 'Open') + '</p>' + (!task.outcome ? '<button data-task="' + task.id + '">Record outcome</button>' : '') + '</div>').join('') + '</div>';
 }
 function importedMissionRows(data) {
   return (state._missions?.[data.missionId]?.records || []).filter(row =>
     !row.astronaut_id || row.astronaut_id === data.astronautId);
+}
+function systemMeasurementPanel(data, systemId) {
+  const summary = systemId === 'exposure' ? analyseMission(missionFor(data), data).summaries.map(item => '<div class="radiation-summary"><h3>' + escape(item.label === 'Recorded mission total' ? item.label : 'Recorded spacewalk exposure · ' + item.label) + '</h3><strong>' + item.dose.toFixed(2) + ' uSv</strong><p>' + item.coveredMinutes + ' minutes covered · ' + (item.missingMinutes === null ? 'mission-wide coverage unknown' : item.missingMinutes + ' minutes uncovered') + '</p></div>').join('') : '';
+  const rows = systemMeasurements(importedMissionRows(data), systemId, data.astronautId);
+  const mapped = { heart_rate: 'pulse', systolic_pressure: 'systolic', diastolic_pressure: 'diastolic', sleep_hours: 'sleep', mood: 'mood', body_temperature: 'temperature', blood_glucose: 'glucose' };
+  const keys = systems.find(system => system.id === systemId).keys;
+  const groups = new Map();
+  for (const row of rows) {
+    if (keys.includes(mapped[row.quantity])) continue;
+    const groupKey = [row.quantity, row.unit, row.reading_type, row.compartment_id, row.source_id].join('|');
+    if (!groups.has(groupKey)) groups.set(groupKey, []);
+    groups.get(groupKey).push(row);
+  }
+  if (!groups.size) return keys.length ? '' : '<p class="unavailable">No measurement or exam for this system. Import the complete sample CSV and select its A-07 profile.</p>';
+  return summary + [...groups.values()].map(group => {
+    const row = group.at(-1);
+    const label = row.quantity.replaceAll('_', ' ');
+    const time = row.timestamp_utc || row.interval_end_utc;
+    const chartData = { day: data.day, records: group.map(item => ({
+      id: item.id, day: item.day, time: item.timestamp_utc || item.interval_end_utc, values: { imported: Number(item.value) }
+    })) };
+    return '<section class="imported-measurement"><h3>' + escape(label.charAt(0).toUpperCase() + label.slice(1)) + '</h3><p class="finding-value">' + escape(row.value) + ' <small>' + escape(row.unit) + '</small></p><p class="small muted">' + utc(time) + ' · ' + escape(row.compartment_id || data.astronautId) + '</p><p class="small muted">' + escape(row.reading_type || row.record_type) + '</p>' +
+      (group.length > 1 ? trendChart(chartData, 'imported', { label, unit: row.unit }) : '') +
+      '<details class="source-details"><summary>Source details</summary><p>' + escape(row.source_id) + ' · ' + escape(row.record_id) + '</p><p>' + escape(row.text) + '</p><p>' + escape(row.importFile) + ' · Row ' + row.importRow + '</p></details></section>';
+  }).join('');
 }
 function missionEvidence(data, systemId) {
   const rows = importedMissionRows(data).filter(row => !systemId || row.body_system === systemId ||
@@ -305,19 +371,36 @@ function missionEvidence(data, systemId) {
       '<dt>File / row</dt><dd>' + escape(row.importFile) + ' · ' + row.importRow + '</dd><dt>Imported on device</dt><dd>' + utc(row.importedAt) + '</dd></dl></details>').join('') + '</details>';
 }
 function logPage(data) {
-  return '<section class="panel timeline"><div class="panel-heading"><h2>Observations, events & actions</h2><span class="small muted">UTC · Original records retained</span></div>' + timeline(data) + missionEvidence(data) + '</section>';
+  return '<section class="panel timeline"><div class="panel-heading"><h2>Observations, events & actions</h2><span class="small muted">UTC · Original records retained</span></div>' + timeline(data) + missionEvidence(data) + missionActionLog(data) + '</section>';
 }
 function timeline(data) {
   const rows = [...data.records.map(record => ({ ...record, title: record.replaces ? 'Corrected observation' : 'Check-in recorded', detail: Object.entries(record.values).map(([key, value]) => (metrics[key]?.label || key) + ' ' + value + ' ' + (metrics[key]?.unit || '')).join(' · ') })), ...data.events.map(event => ({ ...event, title: event.text, detail: event.outcome || 'Crew report · Review outcome pending' })), ...(data.reviews || []).flatMap(review => (review.actions || []).map(action => ({ time: action.time, title: 'Reading review · ' + (review.label || review.findingId), detail: action.note, related: review.sourceId || review.findingId })))].sort((a, b) => b.time.localeCompare(a.time));
   return rows.length ? '<ol class="timeline-list">' + rows.map(row => '<li><time>' + utc(row.time) + '</time><div><strong>' + escape(row.title) + '</strong><p>' + escape(row.detail) + '</p>' + (row.context ? '<p class="small muted">' + escape(row.context) + '</p>' : '') + (row.related ? '<p class="small muted">Linked record ' + escape(row.related) + '</p>' : '') + (row.replaces ? '<p class="small muted">Replaces ' + escape(row.replaces) + ' · ' + escape(row.reason) + '</p>' : '') + (page === 'log' && row.values && !data.records.some(record => record.replaces === row.id) ? '<button class="subtle" data-correct="' + row.id + '">Correct this entry</button>' : '') + '</div></li>').join('') + '</ol>' : '<p class="empty-copy">No observations recorded. Start with a check-in or symptom report.</p>';
 }
 function bindDashboard() {
+  if ($('#demo-editor')) initialiseDemoEditor();
+  if ($('#open-manual-demo')) $('#open-manual-demo').onclick = () => {
+    $('#demo-editor').scrollIntoView({ block: 'start', behavior: 'instant' });
+  };
+  bindMissionControls();
   document.querySelectorAll('[data-open-log]').forEach(button => button.onclick = () => { location.hash = 'log'; });
   $('#astronaut-profile').onchange = event => { profileKey = event.target.value; localStorage.setItem('crew-health-profile', profileKey); selected = 'heart'; render(); };
   if ($('#mission')) $('#mission').onclick = missionSettings;
   if ($('#open-data-latest')) $('#open-data-latest').onclick = () => { location.hash = 'profile'; };
   if ($('#personal-form')) $('#personal-form').onsubmit = savePersonal;
   document.querySelectorAll('[data-system]').forEach(button => button.onclick = () => { selected = button.dataset.system; render(); });
+  document.querySelectorAll('[data-body-alert]').forEach(button => button.onclick = () => {
+    const panel = document.getElementById(button.getAttribute('aria-controls'));
+    const open = panel.hidden;
+    document.querySelectorAll('.body-callout').forEach(item => { item.hidden = true; });
+    document.querySelectorAll('[data-body-alert]').forEach(item => {
+      item.setAttribute('aria-expanded', 'false');
+      item.parentElement.classList.remove('expanded');
+    });
+    panel.hidden = !open;
+    button.setAttribute('aria-expanded', String(open));
+    button.parentElement.classList.toggle('expanded', open);
+  });
   document.querySelectorAll('[data-locate]').forEach(card => {
     const locate = () => {
       selected = card.dataset.locate;
@@ -386,30 +469,61 @@ function bindDashboard() {
   document.querySelectorAll('[data-finding]').forEach(button => button.onclick = () => findingDialog(button.dataset.finding));
   if ($('#checkin')) $('#checkin').onclick = () => checkin();
   if ($('#import-csv')) $('#import-csv').onclick = importCsv;
-  if ($('#history')) $('#history').onclick = () => history(systems.find(item => item.id === selected).keys[0] || 'pulse');
+  if ($('#history')) $('#history').onclick = () => {
+    const key = systems.find(item => item.id === selected).keys[0];
+    if (key) history(key);
+    else modal('System observations & trends', systemMeasurementPanel(profile(), selected) + missionEvidence(profile(), selected));
+  };
   if ($('#report')) $('#report').onclick = () => report();
 }
 function importCsv() {
   let records = [];
   let filename = '';
   let generation = 0;
-  modal('Import health or mission CSV', `<form>
+  let selectedFile;
+  const sample = { name: 'astronaut-health-data.csv', async text() {
+    const response = await fetch('data/testing/' + this.name);
+    if (!response.ok) throw Error('The sample could not be loaded. Reopen the app online once or select a local CSV.');
+    return response.text();
+  } };
+  modal('Import observation CSV', `<form>
     <p>Upload comma-separated UTF-8 data, up to 1 MB and 1000 rows. Every row is validated before a single save.</p>
-    <label>CSV file<input id="csv-file" type="file" accept=".csv,text/csv" required></label>
-    <label>Destination<select id="csv-destination" name="destination"><option value="current">Append to current profile</option><option value="test">Separate synthetic test profile</option><option value="mission" disabled>Mission & crew profiles</option></select></label>
-    <p class="small muted">A separate test profile uses the fictional 7–8 h sleep reference. Existing profiles retain their records, open events and reference settings.</p>
-    <details><summary>CSV column format</summary><p>Combined mission format uses record_type and record_id with mission-scoped links. Use the five-hazards sample for all 44 columns. Each file imports into separate crew profiles with shared mission evidence.</p><p class="small">Health format required headers: mission_day, timestamp_utc, phase, data_kind. Optional measurements: heart_rate_bpm, systolic_mmhg, diastolic_mmhg, temperature_c, sleep_hours, mood, glucose_mgdl, context.</p><p class="small">Use UTC timestamps such as 2026-11-14T08:10:00Z. data_kind is synthetic or observed. Leave unavailable readings blank. Both blood pressure values are required when either is recorded.</p></details>
+    <button type="button" id="csv-sample">Try the 7-day sample</button>
+    <label>Or choose a CSV file<input id="csv-file" type="file" accept=".csv,text/csv"></label>
+    <label>Destination<select id="csv-destination" name="destination"><option value="current">Observed mission records</option><option value="test" selected>Separate synthetic test profile</option><option value="mission" disabled>Mission & crew profiles</option></select></label>
+    <details><summary>Measurement context</summary><p>For files without identifiers, these settings apply to the whole file. The synthetic defaults identify a fictional astronaut and cabin.</p>
+    <div class="form-grid"><label>Mission ID<input id="csv-mission" maxlength="100"></label><label>Astronaut ID<input id="csv-crew" maxlength="100"></label><label>Cabin compartment<input id="csv-compartment" maxlength="100"></label><label>Mission day of latest timestamp<input id="csv-day" type="number" min="1" max="10000"></label></div></details>
+    <details><summary>CSV column format</summary><p>One row per timestamp, with a separate column for each measurement. Leave unmeasured cells blank. Required headers: ${deviceRequired.join(', ')}, plus at least one measurement column. Mission, astronaut and day can come from the selected profile or explicit CSV columns.</p><p>Identify the astronaut or cabin compartment. Each measurement column has one fixed unit for every row. The template contains record_id, timestamp and all 25 measurement columns only. There are no quantity, value or unit columns. Units are fixed in the app. Use UTC timestamps with seconds. Instrument verification and interval history are needed separately for dose totals and time-averaged cabin assessments.</p><p>Mood, available sleep time, symptoms, tasks and treatment rules are collected or configured separately. No incident, support request or handoff is required to import measurements.</p><details><summary>Fixed units by measurement column</summary><div class="table-scroll"><table><thead><tr><th>Column</th><th>Unit</th></tr></thead><tbody>${Object.entries(deviceUnits).map(([key, unit]) => '<tr><td>' + key + '</td><td>' + unit + '</td></tr>').join('')}</tbody></table></div></details><p class="small">Older health and combined mission files remain supported.</p><a href="data/testing/astronaut-health-data.csv" download>Download device observation sample</a></details>
     <div id="csv-preview" aria-live="polite"><p>Select a file to preview its data.</p></div>
     ${formEnd('Import validated rows')}`, async fields => {
     const imported = records;
     const importedName = filename;
     if (!imported.length) throw Error('Select and validate a CSV file first.');
+    if (imported[0].format === 'devices') {
+      if (busy) throw Error('A save is in progress. Please try again.');
+      busy = true;
+      try {
+        const next = structuredClone(state);
+        const synthetic = imported.every(row => row.data_kind === 'synthetic');
+        const rows = synthetic ? separateDemo(imported, crypto.randomUUID().slice(0, 8)) : imported;
+        const result = appendDeviceCsv(next, rows, importedName, $('#csv-crew').value.trim());
+        await commit(next);
+        profileKey = result.target;
+        localStorage.setItem('crew-health-profile', profileKey);
+        location.hash = 'dashboard';
+        toast((imported[0].inputRow ? new Set(imported.map(row => row.importRow)).size + ' timestamp records (' + imported.length + ' measurements)' : imported.length + ' device observations') + ' processed. Dashboard readings and warnings updated.');
+      } finally { busy = false; }
+      return;
+    }
     if (imported[0].format === 'hazards') {
       if (busy) throw Error('A save is in progress. Please try again.');
       busy = true;
       try {
         const next = structuredClone(state);
-        const result = appendHazardCsv(next, imported, importedName);
+        const independent = separateDemo(imported, crypto.randomUUID().slice(0, 8));
+        const validated = await parseCsv(missionCsv(independent));
+        const result = appendHazardCsv(next, validated, importedName);
+        for (const missionId of new Set(validated.map(row => row.mission_id))) next._missions[missionId].evaluationTime = scenarioTime(validated);
         await commit(next);
         profileKey = result.target;
         localStorage.setItem('crew-health-profile', profileKey);
@@ -434,44 +548,86 @@ function importCsv() {
     } finally { busy = false; }
     toast(added + ' records imported. ' + (imported.length - added) + ' exact duplicates skipped. The dashboard now reflects the imported data.');
   });
+  const destination = $('#csv-destination');
+  function setContext() {
+    const test = destination.value === 'test';
+    $('#csv-mission').value = test ? 'SAMPLE' : profile().missionId || profile().personal?.missionName || '';
+    $('#csv-crew').value = test ? 'A-07' : profile().astronautId || profile().personal?.astronautId || '';
+    $('#csv-compartment').value = test ? 'sleeping-quarters' : '';
+    $('#csv-day').value = test ? 61 : profile().day;
+  }
+  setContext();
+  destination.onchange = () => { setContext(); if (selectedFile) preview(selectedFile); };
+  for (const id of ['mission','crew','compartment','day']) $('#csv-' + id).oninput = () => { if (selectedFile) preview(selectedFile); };
   const submit = $('#dialog-body [type=submit]');
   submit.disabled = true;
-  $('#csv-file').onchange = async event => {
+  $('#csv-file').onchange = event => {
+    if (destination.value === 'mission') { destination.value = 'test'; setContext(); }
+    destination.disabled = false;
+    destination.querySelector('[value=test]').disabled = false;
+    preview(event.target.files[0]);
+  };
+  $('#csv-sample').onclick = () => {
+    $('#csv-file').value = '';
+    destination.querySelector('[value=test]').disabled = false;
+    destination.value = 'test';
+    setContext();
+    preview(sample);
+  };
+  async function preview(file) {
+    selectedFile = file;
     const version = ++generation;
     records = [];
     submit.disabled = true;
     $('#csv-preview').textContent = 'Validating file…';
     $('#dialog-body .form-error').textContent = '';
     try {
-      const file = event.target.files[0];
       if (!file || !/\.csv$/i.test(file.name)) throw Error('Select a .csv file.');
       if (file.size > csvLimit) throw Error('CSV files must be 1 MB or smaller.');
-      const parsed = await parseCsv(await file.text());
+      const parsed = await parseCsv(await file.text(), { mission_id: $('#csv-mission').value.trim(), mission_day: $('#csv-day').value, data_kind: destination.value === 'test' ? 'synthetic' : 'observed', astronaut_id: $('#csv-crew').value.trim(), compartment_id: $('#csv-compartment').value.trim() });
       if (version !== generation) return;
       records = parsed;
       filename = file.name;
       const synthetic = records.every(record => record.source === 'CSV · Synthetic');
       $('#csv-destination option[value=test]').disabled = !synthetic;
       $('#csv-destination').value = synthetic ? 'test' : 'current';
+      if (records[0].format === 'devices') {
+        destination.disabled = file === sample;
+        destination.querySelector('[value=test]').disabled = false;
+        $('#csv-destination').value = synthetic ? 'test' : 'current';
+        const preview = structuredClone(state);
+        appendDeviceCsv(preview, synthetic ? separateDemo(records, 'preview-' + crypto.randomUUID().slice(0, 8)) : records, filename, $('#csv-crew').value.trim());
+        const inputRows = records[0].inputRow ? [...new Map(records.map(row => [row.importRow, row.inputRow])).values()] : records;
+        const columns = records[0].inputRow ? Object.keys(inputRows[0]) : deviceColumns.filter(key => deviceRequired.includes(key) || records.some(row => row[key]));
+        $('#csv-preview').innerHTML = '<p><strong>' + inputRows.length + ' timestamp records (' + records.length + ' measurements)</strong> · ' + (synthetic ? 'Creates a separate synthetic dataset.' : 'Updates the mission and astronaut identified in the file.') + '</p><p class="small">Only supplied observations are imported. The app supplies its local demo rules; no cases or tasks are fabricated.</p><div class="table-scroll"><table><caption>Timestamp records · fixed units per measurement column</caption><thead><tr>' + columns.map(key => '<th>' + escape(key) + (deviceUnits[key] ? '<br>' + escape(deviceUnits[key]) : '') + '</th>').join('') + '</tr></thead><tbody>' + inputRows.map(row => '<tr>' + columns.map(key => '<td>' + escape(row[key]) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+        submit.disabled = false;
+        return;
+      }
       const combined = records[0].format === 'hazards';
       $('#csv-destination').disabled = combined;
       if (combined) {
         $('#csv-destination').value = 'mission';
-        $('#csv-preview').innerHTML = '<p><strong>' + records.length + ' valid mission rows</strong> · Imports into mission-scoped crew profiles. Linked IDs and existing-record conflicts are checked before saving.</p><div class="table-scroll"><table><caption>All combined mission fields</caption><thead><tr>' + hazardColumns.map(key => '<th>' + escape(key) + '</th>').join('') + '</tr></thead><tbody>' + records.map(row => '<tr>' + hazardColumns.map(key => '<td>' + escape(row[key]) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+        $('#csv-preview').innerHTML = '<p><strong>' + records.length + ' valid mission rows</strong> · Creates a separate artificial demo dataset. Linked IDs and existing-record conflicts are checked before saving.</p><div class="table-scroll"><table><caption>All combined mission fields</caption><thead><tr>' + hazardColumns.map(key => '<th>' + escape(key) + '</th>').join('') + '</tr></thead><tbody>' + records.map(row => '<tr>' + hazardColumns.map(key => '<td>' + escape(row[key]) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
         const preview = structuredClone(state);
-        appendHazardCsv(preview, records, filename);
+        const previewRows = await parseCsv(missionCsv(separateDemo(records, 'preview-' + crypto.randomUUID().slice(0, 8))));
+        if (version !== generation) return;
+        const staged = appendHazardCsv(preview, previewRows, filename);
+        const targetProfile = preview[staged.target];
+        const missing = demoCoverage(preview._missions[targetProfile.missionId].records, targetProfile.astronautId).filter(item => !item.complete);
+        if (missing.length) throw Error('This demo file needs: ' + missing.map(item => item.label).join(', '));
         submit.disabled = false;
         return;
       }
       const columns = ['Day', 'UTC', 'Phase', 'Source', ...Object.values(metrics).map(field => field.label + ' (' + field.unit + ')'), 'Mood', 'Context'];
-      $('#csv-preview').innerHTML = '<p><strong>' + records.length + ' valid rows</strong> · Mission days ' + Math.min(...records.map(record => record.day)) + '–' + Math.max(...records.map(record => record.day)) + '</p><div class="table-scroll"><table><caption>All uploaded observations</caption><thead><tr>' + columns.map(label => '<th>' + label + '</th>').join('') + '</tr></thead><tbody>' + records.map(record => '<tr>' + [record.day, utc(record.time), record.phase, record.source, ...Object.keys(metrics).map(key => record.values[key] ?? '—'), record.values.mood ?? '—', record.context].map(value => '<td>' + escape(value) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+      $('#csv-preview').innerHTML = '<p><strong>' + records.length + ' valid health rows</strong> · Health-only coverage. Use the complete sample CSV for measurements, exams and mission records. Mission days ' + Math.min(...records.map(record => record.day)) + '–' + Math.max(...records.map(record => record.day)) + '</p><div class="table-scroll"><table><caption>All uploaded observations</caption><thead><tr>' + columns.map(label => '<th>' + label + '</th>').join('') + '</tr></thead><tbody>' + records.map(record => '<tr>' + [record.day, utc(record.time), record.phase, record.source, ...Object.keys(metrics).map(key => record.values[key] ?? '—'), record.values.mood ?? '—', record.context].map(value => '<td>' + escape(value) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
       submit.disabled = false;
     } catch (error) {
       if (version !== generation) return;
+      records = [];
       $('#csv-preview').textContent = 'No rows imported. Fix the file and select it again.';
       $('#dialog-body .form-error').textContent = error.message;
     }
-  };
+  }
 }
 function checkin(correctionId) {
   const old = profile().records.find(record => record.id === correctionId);
@@ -491,7 +647,7 @@ function checkin(correctionId) {
       if (old?.importFile) record.originalImport = old.originalImport || { file: old.importFile, row: old.importRow, time: old.importedAt };
       await changeProfile(data => addObservation(data, record));
       location.hash = 'dashboard';
-      toast('Check-in saved. ' + readingFindings(profile()).length + ' readings outside demo references.');
+      toast('Check-in saved. ' + allFindings(profile()).length + ' readings outside demo references.');
     });
 }
 function missionSettings() {
@@ -511,9 +667,10 @@ function report() {
   });
 }
 function findingDialog(id) {
-  const finding = readingFindings(profile()).find(item => item.id === id);
+  const finding = allFindings(profile()).find(item => item.id === id);
   if (!finding) return;
-  modal('Reading evidence & action', '<h3>' + escape(finding.label) + '</h3><p>' + escape(finding.value) + ' ' + (metrics[finding.key]?.unit || '') + ' · Demo reference ' + escape(finding.reference) + '</p><p>' + utc(finding.record.time) + ' · ' + escape(finding.record.source) + '</p><p class="small muted">Evaluated when this view opened. ' + finding.rule + '. Measurement context: ' + escape(finding.record.context || 'Not recorded') + '</p><div class="guidance"><h3>Demo review checklist v1</h3><ol><li>Check the entered value, units, device and collection context.</li><li>Use the approved onboard measurement procedure to confirm a suspect reading.</li><li>Record symptoms and contact the crew medical officer for assessment.</li></ol><p>These fictional demo thresholds require mission validation.</p></div>' + (finding.review?.actions || []).map(action => '<p>' + utc(action.time) + ' · ' + escape(action.note) + '</p>').join('') + (finding.key === 'sleep' ? '<button id="schedule-sleep" class="wide">Schedule sleep follow-up</button>' : '') + '<form><label>Action taken or next step<textarea name="note" required maxlength="1000"></textarea></label>' + formEnd('Record review'), async fields => {
+  if (finding.missionFinding) return missionFindingDialog(finding);
+  modal('Reading evidence & action', '<h3>' + escape(finding.label) + '</h3><p>' + escape(finding.value) + ' ' + (finding.unit || metrics[finding.key]?.unit || '') + ' · Demo reference ' + escape(finding.reference) + '</p><p>' + utc(finding.record.time) + ' · ' + escape(finding.record.source) + '</p><p class="small muted">Evaluated when this view opened. ' + finding.rule + '. Measurement context: ' + escape(finding.record.context || 'Not recorded') + '</p><div class="guidance"><h3>Demo review checklist v1</h3><ol><li>Check the entered value, units, device and collection context.</li><li>Use the approved onboard measurement procedure to confirm a suspect reading.</li><li>Record symptoms and contact the crew medical officer for assessment.</li></ol><p>These fictional demo thresholds require mission validation.</p></div>' + (finding.review?.actions || []).map(action => '<p>' + utc(action.time) + ' · ' + escape(action.note) + '</p>').join('') + (finding.key === 'sleep' ? '<button id="schedule-sleep" class="wide">Schedule sleep follow-up</button>' : '') + '<form><label>Action taken or next step<textarea name="note" required maxlength="1000"></textarea></label>' + formEnd('Record review'), async fields => {
     await changeProfile(data => reviewFinding(data, id, fields.get('note'), new Date().toISOString()));
     toast('Review saved. The source reading remains visible until new evidence changes the finding.');
   });
@@ -555,10 +712,10 @@ function history(initial) {
   $('#trend-key').onchange = () => drawTrend($('#trend-key').value);
   drawTrend(initial);
 }
-function trendChart(data, key) {
+function trendChart(data, key, field = metrics[key]) {
   const daily = sevenDayReadings(data, key);
-  const label = metrics[key]?.label || 'Mood';
-  const unit = metrics[key]?.unit || 'Self-report';
+  const label = field?.label || 'Mood';
+  const unit = field?.unit || 'Self-report';
   if (!daily.some(item => item.record)) return '<p class="trend-empty small muted">No ' + escape(label.toLowerCase()) + ' readings in the last seven mission days.</p>';
   if (key === 'mood') {
     return '<figure class="inline-trend"><figcaption>7-day mood history · Daily latest</figcaption><ol class="mood-history">' + daily.map(({ day, record }) =>
@@ -579,6 +736,116 @@ function drawTrend(key) {
   const data = profile();
   const records = currentRecords(data.records).filter(record => record.values[key] !== undefined);
   $('#trend').innerHTML = '<p class="small muted">Daily latest values · Gaps stay unmeasured · ' + (key === 'sleep' && data.baseline ? escape(data.baseline.source) + ' ' + data.baseline.low + '–' + data.baseline.high + ' h · Sample count unavailable' : 'Personal reference unavailable') + '</p>' + trendChart(data, key) + '<div class="table-scroll"><table><caption>Source observations · ' + (metrics[key]?.unit || 'Self-report') + '</caption><thead><tr><th>Day / UTC</th><th>Value</th><th>Source & context</th></tr></thead><tbody>' + records.map(record => '<tr><td>D' + record.day + '<br>' + utc(record.time) + '</td><td>' + escape(record.values[key]) + ' ' + (metrics[key]?.unit || '') + '</td><td>' + escape(record.source) + '<br>' + escape(record.phase) + '<br>' + escape(record.context || 'Context not released') + '</td></tr>').join('') + '</tbody></table></div>' + (!records.length ? '<p>No observations for this indicator.</p>' : '');
+}
+
+function initialiseDemoEditor() {
+  mountDemoEditor($('#demo-editor'), async records => {
+    if (busy) throw Error('A save is in progress.');
+    busy = true;
+    try {
+      const validated = await parseCsv(missionCsv(separateDemo(records, crypto.randomUUID().slice(0, 8))));
+      const next = structuredClone(state);
+      const result = appendHazardCsv(next, validated, 'manual-demo.csv');
+      for (const missionId of new Set(validated.map(row => row.mission_id))) next._missions[missionId].evaluationTime = scenarioTime(validated);
+      await commit(next);
+      profileKey = result.target;
+      localStorage.setItem('crew-health-profile', profileKey);
+      location.hash = 'dashboard';
+      render();
+      toast('Complete artificial dataset saved. Dashboard readings and warnings updated.');
+    } finally { busy = false; }
+  });
+}
+function missionStatus(data) {
+  const mission = missionFor(data);
+  if (!mission) return '';
+  if (mission.inputFormat === 'devices') {
+    const count = currentMissionRows(mission.records).filter(row => row.quantity && row.record_type !== 'demo_rule' && (!row.astronaut_id || row.astronaut_id === data.astronautId)).length;
+    return '<p class="small">' + count + ' current device observations. Self-reports, events and crew actions are recorded separately.</p>';
+  }
+  const checks = demoCoverage(mission.records, data.astronautId);
+  return '<details class="coverage-checklist"><summary>Data coverage · ' + checks.filter(item => item.complete).length + '/' + checks.length + '</summary><ul>' + checks.map(item => '<li>' + (item.complete ? '✓ ' : 'Missing · ') + escape(item.label) + '</li>').join('') + '</ul><p class="small">Scenario time · ' + utc(mission.evaluationTime || scenarioTime(mission.records)) + '</p></details>';
+}
+function missionControls(data) {
+  const mission = missionFor(data);
+  if (!mission) return '';
+  return '<section class="panel demo-workspace"><div class="panel-heading"><h2>Mission actions & scenario clock</h2></div><div class="evidence-body">' + missionStatus(data) + '<label>Scenario evaluation time (UTC)<input id="scenario-clock" type="datetime-local" value="' + (mission.evaluationTime || scenarioTime(mission.records)).slice(0, 16) + '"></label><div class="input-actions"><button id="save-scenario-clock">Evaluate at this time</button><button id="support-request">Request crew check-in</button><button id="prepare-handoff">Prepare ground handoff</button></div><p class="small muted">Clock controls the artificial scenario, overdue checks and data freshness.</p></div></section>';
+}
+function bindMissionControls() {
+  if ($('#save-scenario-clock')) $('#save-scenario-clock').onclick = async () => {
+    try {
+      const input = $('#scenario-clock').value;
+      if (!input || !Number.isFinite(Date.parse(input + 'Z'))) throw Error('Enter a valid scenario UTC time.');
+      await changeMission(mission => { mission.evaluationTime = new Date(input + 'Z').toISOString(); });
+      render();
+    } catch (error) { toast(error.message, true); }
+  };
+  if ($('#support-request')) $('#support-request').onclick = supportRequest;
+  if ($('#prepare-handoff')) $('#prepare-handoff').onclick = prepareHandoff;
+}
+function missionFindingDialog(finding) {
+  const mission = missionFor(profile());
+  const stored = mission.actions?.[finding.id];
+  modal('Mission evidence & crew action', '<h3>' + escape(finding.label) + '</h3><p>' + escape(finding.value) + ' ' + escape(finding.unit) + '</p><p>' + escape(finding.detail) + '</p><p class="small">Evaluated at ' + utc(finding.evaluationTime) + '</p><details><summary>Source records and rule</summary><p>' + escape(finding.evidenceIds.join(', ')) + '</p><p>' + escape(finding.rule) + '</p><p>' + escape(finding.reference) + '</p></details><div class="guidance"><h3>' + escape(finding.procedure?.record_id || 'Crew review') + ' · ' + escape(finding.procedure?.procedure_version || 'Demo v1') + '</h3><p>' + escape(finding.procedure?.text || 'Verify the source data and request crew review. Record the next action.') + '</p></div>' +
+    (stored?.actions || []).map(action => '<p>' + utc(action.time) + ' · ' + escape(action.owner) + ' · ' + escape(action.note) + '</p>').join('') +
+    '<form><label>Responsible crew member<input name="owner" required maxlength="100" value="A-08"></label><label>Action or result<textarea name="note" required maxlength="1000"></textarea></label><label>Assign next check (UTC, optional)<input type="datetime-local" name="due"></label>' +
+    (finding.taskId ? '<label class="checkbox"><input type="checkbox" name="complete">Complete this task or crew assessment with the recorded result</label>' : '') + formEnd('Save mission action'), async fields => {
+      await changeMission(target => {
+        const fresh = evaluateMission(target, profile()).find(item => item.id === finding.id);
+        if (!fresh) throw Error('This finding changed. Reopen the current evidence.');
+        const time = target.evaluationTime || scenarioTime(target.records);
+        recordMissionAction(target, fresh, fields.get('note'), fields.get('owner'), fields.get('due') ? new Date(fields.get('due') + 'Z').toISOString() : '', time, fields.has('complete'));
+      });
+      toast('Mission action saved locally.');
+    });
+}
+function supportRequest() {
+  modal('Request a crew check-in', '<form><label>Recipient<input name="recipient" value="A-08" required maxlength="100"></label><label>Private support note<textarea name="note" required maxlength="1000"></textarea></label>' + formEnd('Save support request'), async fields => {
+    const mission = missionFor(profile());
+    const source = currentMissionRows(mission.records).find(row => row.record_type === 'support_request' && row.astronaut_id === profile().astronautId);
+    const template = source || { ...Object.fromEntries(hazardColumns.map(key => [key, ''])), mission_id: profile().missionId, mission_day: String(profile().day), data_kind: mission.records.every(row => row.data_kind === 'synthetic') ? 'synthetic' : 'observed', record_type: 'support_request', astronaut_id: profile().astronautId, body_system: 'sleep', visibility: 'restricted-support', quality: 'valid', procedure_id: 'PROC-SLEEP' };
+    const row = { ...template, record_id: 'SUPPORT-' + crypto.randomUUID().slice(0, 8), timestamp_utc: (mission.evaluationTime || scenarioTime(mission.records)).replace('.000Z', 'Z'), related_ids: '', replaces_id: '', correction_reason: '', status: 'open', text: fields.get('note').trim(), recipient_id: fields.get('recipient').trim() };
+    if (!row.text) throw Error('Enter a support note.');
+    const parsed = await parseCsv(missionCsv([row]));
+    if (busy) throw Error('A save is in progress.');
+    busy = true;
+    try {
+      const next = structuredClone(state);
+      appendHazardCsv(next, parsed, 'crew-support.csv');
+      await commit(next);
+    } finally { busy = false; }
+  });
+}
+function prepareHandoff() {
+  const data = profile();
+  const mission = missionFor(data);
+  const available = currentMissionRows(mission.records).filter(row =>
+    row.visibility !== 'restricted-support' && row.record_type !== 'support_request' &&
+    (!row.astronaut_id || row.astronaut_id === data.astronautId) &&
+    ['incident', 'symptom', 'measurement', 'crew_action', 'task', 'assessment_result'].includes(row.record_type));
+  modal('Prepare ground handoff', '<form><label>Question for the flight surgeon<textarea name="question" required maxlength="1000"></textarea></label><details><summary>Select released records</summary>' +
+    available.map(row => '<label class="checkbox"><input type="checkbox" name="release" value="' + escape(row.record_id) + '" ' + (row.record_type === 'incident' ? 'checked' : '') + '>' + escape(row.record_id + ' · ' + (row.quantity || row.record_type)) + '</label>').join('') + '</details><p>Export saves a local snapshot. Delivery stays unconfirmed.</p>' + formEnd('Save & download handoff'), async fields => {
+      const snapshot = handoffSnapshot(mission, data.astronautId, fields.getAll('release'), fields.get('question'), mission.evaluationTime || scenarioTime(mission.records));
+      snapshot.id += '-' + crypto.randomUUID().slice(0, 8);
+      if (!snapshot.records.length) throw Error('Select at least one record.');
+      await changeMission(target => {
+        target.exports ||= {};
+        target.exports[snapshot.id] = snapshot;
+        const imported = target.records.find(row => row.record_type === 'handoff' && row.astronaut_id === data.astronautId);
+        if (imported) target.exports[imported.record_id] = snapshot;
+      });
+      const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url; link.download = 'crew-ground-handoff.json'; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast('Handoff exported locally. Delivery unconfirmed.');
+    });
+}
+function missionActionLog(data) {
+  const mission = missionFor(data);
+  if (!mission) return '';
+  const rows = Object.entries(mission.actions || {}).filter(([id, item]) => id.startsWith('mission-') && (!item.restricted || item.astronautId === data.astronautId)).flatMap(([id, item]) => (item.actions || []).map(action => ({ ...action, id })));
+  return '<section class="mission-action-history"><h3>Mission action history</h3>' + rows.map(action => '<p>' + utc(action.time) + ' · ' + escape(action.owner) + ' · ' + escape(action.note) + '</p>').join('') + '</section>';
 }
 $('#close-dialog').onclick = () => $('#dialog').close();
 $('#help').onclick = () => modal('Crew medical help', '<div class="guidance"><h3>Contact the crew medical officer now for an urgent concern</h3><p>Use the mission’s approved communication and emergency procedure. This prototype has no loaded medical protocols and cannot call or transmit a distress message.</p></div><button id="urgent-report" class="danger-button wide">Record an urgent crew report</button>');
