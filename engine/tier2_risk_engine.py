@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-import onnxruntime as ort
 
 from engine.tier1_hbm_physics import HBMState, TelemetryInput, compute_hbm_state
 
@@ -176,6 +175,7 @@ def train_and_export_tier2(
     import lightgbm as lgb
     import onnxmltools
     from onnxmltools.convert.common.data_types import FloatTensorType
+    import onnxruntime as ort
     import shap
     from sklearn.metrics import classification_report, recall_score, f1_score
     from sklearn.model_selection import train_test_split
@@ -278,6 +278,7 @@ class Tier2RiskEngine:
             raise FileNotFoundError(
                 f"Missing Tier 2 ONNX artifact at {onnx_path}. Run train_and_export_tier2() first."
             )
+        import onnxruntime as ort
         self.onnx_path = onnx_path
         self.sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
         self.input_name = self.sess.get_inputs()[0].name

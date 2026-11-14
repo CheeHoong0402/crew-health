@@ -22,7 +22,10 @@ if not API_KEY.strip():
     API_KEY = secrets.token_urlsafe(24)
     print("Generated API key (copy it now):", API_KEY)
 os.environ["AETHER_API_KEY"] = API_KEY.strip()
-subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "numpy", "scipy", "scikit-learn", "joblib", "pillow", "jsonschema"])
+pkgs = ["numpy", "scipy", "scikit-learn", "joblib", "pillow", "jsonschema"]
+if ENABLE_LIGHTGBM_ONNX:
+    pkgs += ["lightgbm>=4.5", "onnx", "onnxmltools>=1.13", "onnxruntime>=1.20", "shap>=0.46"]
+subprocess.check_call([sys.executable, "-m", "pip", "install", "-q"] + pkgs)
 CF = "/usr/local/bin/cloudflared"
 if not os.environ.get("AETHER_SKIP_TUNNEL") and not os.path.exists(CF):
     subprocess.check_call("wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O %s && chmod +x %s" % (CF, CF), shell=True)
