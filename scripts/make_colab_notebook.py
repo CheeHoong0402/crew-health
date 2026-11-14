@@ -14,7 +14,8 @@ payload = base64.b64encode(buf.getvalue()).decode()
 C_PARAMS = '''# @title Cell 1: Settings + install (≈30 s)
 import os, sys, subprocess, secrets, platform
 API_KEY = ""                 # @param {type:"string"}  leave blank to auto-generate a strong key
-ENABLE_LIGHTGBM_ONNX = False # @param {type:"boolean"}  OPTIONAL: train the plan's LightGBM+ONNX Tier 2 (untested path, see notes)
+ENABLE_LIGHTGBM_ONNX = True  # @param {type:"boolean"}  train LightGBM+ONNX Tier 2 + verify ONNXRuntime parity
+ENABLE_NASA_OSDR = True      # @param {type:"boolean"}  fetch live NASA OSDR baselines + NOAA SWPC space weather
 BASE = os.environ.get("AETHER_BASE", "/content")
 os.makedirs(BASE, exist_ok=True)
 if not API_KEY.strip():
@@ -45,6 +46,8 @@ def run(args, env_extra=None, tail=6):
     print("$", " ".join(args)); print("\\n".join("   " + l for l in out[-tail:]))
     if r.returncode != 0: raise RuntimeError("step failed: " + " ".join(args))
 run(["data/build_datasets.py"], tail=2)
+if ENABLE_NASA_OSDR:
+    run(["scripts/ingest_nasa_osdr.py", "."], tail=4)
 run(["scripts/train_retrievers.py", "."], tail=5)
 run(["scripts/tune_eval.py", "."], tail=8)           # tuned Tier 2 + accuracy/speed report
 run(["scripts/train_temporal_tier2.py", "."], tail=6)  # temporal early-warning model
@@ -80,15 +83,35 @@ if not os.environ.get("AETHER_SKIP_TUNNEL"):
     if not public: raise RuntimeError("no trycloudflare URL captured")
     time.sleep(4)
 K = API_KEY.strip()
+# Live verify OpenAI-compatible Web Demo API format (base_url + model + api_key)
+def _check_v1():
+    req1 = urllib.request.Request(public + "/v1/models", headers={"Authorization": "Bearer " + K})
+    with urllib.request.urlopen(req1, timeout=15) as r:
+        m = json.loads(r.read().decode())
+    req2 = urllib.request.Request(public + "/v1/chat/completions",
+        data=json.dumps({"model": "aether-flight-surgeon-v1", "messages": [{"role": "user", "content": "CO2 is 4 mmHg, what should we do?"}]}).encode(),
+        headers={"Authorization": "Bearer " + K, "Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req2, timeout=15) as r:
+        c = json.loads(r.read().decode())
+    print("LIVE /v1/models:", [x["id"] for x in m.get("data", [])])
+    print("LIVE /v1/chat/completions:", c["choices"][0]["message"]["content"].splitlines()[0])
+_check_v1()
 print("=" * 78)
+print("WEB DEMO API CONFIG (OpenAI-compatible):")
+print("  BASE_URL :", public + "/v1")
+print("  MODEL    : aether-flight-surgeon-v1   (also: aether-triage-v1, aether-embedding-v1)")
+print("  API_KEY  :", K)
+print("-" * 78)
+print(json.dumps({"base_url": public + "/v1", "model": "aether-flight-surgeon-v1", "api_key": K}, indent=2))
+print("-" * 78)
 print("PUBLIC URL      :", public)
-print("API KEY         :", K)
 print("WEB PAGE        :", public + "/            (paste the key in the page)")
 print("OPENAPI SCHEMA  :", public + "/openapi.json")
 print("AI TOOL DEFS    :", public + "/tools")
 print("MCP (key in URL):", public + "/k/" + K + "/mcp      <- paste into an AI client that accepts a connector/MCP URL")
 print("=" * 78)
 print(f"""
+curl -s -X POST "{public}/v1/chat/completions" -H "Authorization: Bearer {K}" -H "Content-Type: application/json" -d '{{"model":"aether-flight-surgeon-v1","messages":[{{"role":"user","content":"CO2 is 4 mmHg, what should we do?"}}]}}'
 curl -s -X POST "{public}/ask" -H "X-API-Key: {K}" -d '{{"question":"CO2 is 4 mmHg, what should we do?"}}'
 curl -s -X POST "{public}/triage" -H "X-API-Key: {K}" -d '{{"goes_proton_flux_pfu":42.5,"symptom_notes":"nausea after flare"}}'
 """)

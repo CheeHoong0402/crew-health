@@ -80,12 +80,97 @@ TOOLS = [
 HANDLERS = {"aether_ask": lambda a: ask(a.get("question", "")), "aether_triage": triage, "aether_early_warning": early}
 ROUTES = {"/ask": HANDLERS["aether_ask"], "/triage": HANDLERS["aether_triage"], "/early": HANDLERS["aether_early_warning"]}
 
+OPENAI_MODELS = [
+    {"id": "aether-flight-surgeon-v1", "object": "model", "created": 1731628800, "owned_by": "project-aether"},
+    {"id": "aether-triage-v1", "object": "model", "created": 1731628800, "owned_by": "project-aether"},
+    {"id": "aether-embedding-v1", "object": "model", "created": 1731628800, "owned_by": "project-aether"},
+]
+
+def _extract_user_text(messages: list) -> str:
+    for m in reversed(messages or []):
+        if isinstance(m, dict) and m.get("role") == "user":
+            c = m.get("content", "")
+            if isinstance(c, list):
+                return " ".join(str(p.get("text", "")) for p in c if isinstance(p, dict) and p.get("type") == "text").strip()
+            return str(c).strip()
+    return ""
+
+def _format_aether_reply(res: dict, is_triage: bool) -> str:
+    if is_triage:
+        t = res.get("triage", {})
+        actions = "\n".join(f"- {a}" for a in t.get("immediate_crew_actions", []))
+        dirs = ", ".join(t.get("hardware_bus_directives", []))
+        med = t.get("offline_medical_kit_lookup", {}).get("recommended_agent", "N/A")
+        return (
+            f"**Alert Level:** {t.get('alert_level')} | **TTC:** {t.get('time_to_criticality_minutes')} min\n"
+            f"**Syndromes:** {', '.join(t.get('detected_syndromes', []))}\n"
+            f"**Crew Actions:**\n{actions}\n"
+            f"**Hardware Directives:** `{dirs}`\n"
+            f"**Medical Kit:** {med}\n\n"
+            f"```json\n{json.dumps(t, ensure_ascii=False, indent=2)}\n```\n"
+            f"_{DISCLAIMER}_"
+        )
+    if "error" in res:
+        return f"Error: {res['error']}"
+    actions = "\n".join(f"- {a}" for a in res.get("crew_actions", []))
+    dirs = ", ".join(res.get("hardware_directives", []))
+    med = (res.get("medical_kit") or {}).get("recommended_agent", "N/A")
+    flags = f"\n**Reading Flags:** {', '.join(res['reading_flags'])}" if res.get("reading_flags") else ""
+    note = f"\n\n> {res['note']}" if res.get("note") else ""
+    return (
+        f"**Protocol:** {res.get('matched_protocol')} (`{res.get('protocol_id')}`)\n"
+        f"**Severity:** {res.get('severity')} | **Confidence:** {res.get('confidence')} | **TTC:** {res.get('time_to_criticality_min')} min{flags}\n"
+        f"**Crew Actions:**\n{actions}\n"
+        f"**Hardware Directives:** `{dirs}`\n"
+        f"**Medical Kit:** {med}{note}\n\n"
+        f"_{DISCLAIMER}_"
+    )
+
+def chat_completions(body: dict):
+    model = str(body.get("model") or "aether-flight-surgeon-v1")
+    user_text = _extract_user_text(body.get("messages") or [])
+    if not user_text:
+        return {"error": {"message": "messages must contain a non-empty user turn", "type": "invalid_request_error"}}
+    is_triage = False
+    raw_res = None
+    if user_text.lstrip().startswith("{"):
+        try:
+            parsed = json.loads(user_text)
+            if isinstance(parsed, dict) and (set(parsed) & FIELDS or model == "aether-triage-v1"):
+                raw_res = triage(parsed); is_triage = True
+        except Exception:
+            raw_res = None
+    if raw_res is None:
+        raw_res = triage({}) if model == "aether-triage-v1" and not user_text else ask(user_text)
+    reply_text = _format_aether_reply(raw_res, is_triage)
+    cid = f"chatcmpl-aether-{int(time.time() * 1000)}"
+    ptok, ctok = max(1, len(user_text) // 4), max(1, len(reply_text) // 4)
+    return {
+        "id": cid, "object": "chat.completion", "created": int(time.time()), "model": model,
+        "choices": [{"index": 0, "message": {"role": "assistant", "content": reply_text}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": ptok, "completion_tokens": ctok, "total_tokens": ptok + ctok},
+        "aether": raw_res,
+    }
+
+def embeddings_v1(body: dict):
+    inp = body.get("input", "")
+    texts = [inp] if isinstance(inp, str) else [str(x) for x in (inp or [])]
+    data = [{"object": "embedding", "index": i, "embedding": [round(float(x), 6) for x in PIPE.rag.embed_text(t)]} for i, t in enumerate(texts)]
+    return {"object": "list", "data": data, "model": str(body.get("model") or "aether-embedding-v1"), "usage": {"prompt_tokens": sum(max(1, len(t) // 4) for t in texts), "total_tokens": sum(max(1, len(t) // 4) for t in texts)}}
+
+ROUTES["/v1/chat/completions"] = chat_completions
+ROUTES["/chat/completions"] = chat_completions
+ROUTES["/v1/embeddings"] = embeddings_v1
+ROUTES["/embeddings"] = embeddings_v1
+
 def openapi(base: str):
     def op(summary, schema): return {"post": {"summary": summary, "security": [{"ApiKey": []}], "requestBody": {"required": True, "content": {"application/json": {"schema": schema}}},
                                              "responses": {"200": {"description": "JSON result"}, "401": {"description": "missing/invalid API key"}, "429": {"description": "rate limit"}}}}
     return {"openapi": "3.0.3", "info": {"title": "AETHER Flight Surgeon AI API", "version": "1.0", "description": DISCLAIMER}, "servers": [{"url": base}],
-            "components": {"securitySchemes": {"ApiKey": {"type": "apiKey", "in": "header", "name": "X-API-Key"}}},
+            "components": {"securitySchemes": {"ApiKey": {"type": "apiKey", "in": "header", "name": "X-API-Key"}, "BearerAuth": {"type": "http", "scheme": "bearer"}}},
             "paths": {"/ask": op("Ask a question", TOOLS[0]["inputSchema"]), "/triage": op("Triage telemetry", TOOLS[1]["inputSchema"]), "/early": op("Early warning", TOOLS[2]["inputSchema"]),
+                      "/v1/chat/completions": op("OpenAI-compatible chat completions", {"type": "object", "properties": {"model": {"type": "string"}, "messages": {"type": "array"}, "stream": {"type": "boolean"}}, "required": ["messages"]}),
+                      "/v1/models": {"get": {"summary": "List OpenAI-compatible models", "responses": {"200": {"description": "model list"}}}},
                       "/health": {"get": {"summary": "Status", "responses": {"200": {"description": "ok"}}}}}}
 
 def mcp(msg):
@@ -109,15 +194,17 @@ def mcp(msg):
 PRESETS = {"nominal": {}, "solar storm": {"goes_proton_flux_pfu": 42.5, "dosimeter_rate_usv_hr": 180, "symptom_notes": "nausea after flare"},
            "high CO2": {"cabin_ppco2_mmhg": 4.0}, "rover impact": {"ltv_imu_peak_g": 4.2, "recent_suit_impacts_7d": 3, "symptom_notes": "shoulder pain after jolt"},
            "low glucose": {"blood_glucose_mg_dl": 52}, "low BP": {"systolic_bp_mmhg": 84, "diastolic_bp_mmhg": 54, "resting_hr_bpm": 118}}
-PAGE = """<!doctype html><meta charset=utf-8><title>AETHER</title><style>body{font:15px system-ui;max-width:860px;margin:24px auto;padding:0 12px}
-input,button{font:inherit;padding:6px 10px;margin:2px}input#q{width:70%}pre{background:#f4f4f4;padding:10px;overflow:auto;max-height:420px}</style>
+PAGE = """<!doctype html><meta charset=utf-8><title>AETHER</title><style>body{font:15px system-ui;max-width:880px;margin:24px auto;padding:0 12px}
+input,button{font:inherit;padding:6px 10px;margin:2px}input#q{width:64%}pre{background:#f4f4f4;padding:10px;overflow:auto;max-height:420px}.cfg{background:#eef4ff;padding:10px;border-radius:6px;font-family:monospace;font-size:13px}</style>
 <h2>AETHER – Autonomous Flight Surgeon AI</h2><p><small>Research prototype, not a medical device. Do not enter real patient data.</small></p>
-API key: <input id=k type=password placeholder="X-API-Key"> <small>(kept in this page only)</small>
-<h3>1. Ask (English / 中文)</h3><input id=q placeholder="CO2 is 4 mmHg, what should we do?  /  血糖很低怎么办"><button onclick=ask()>Ask</button>
+<div class=cfg><b>Web Demo API Config:</b> Base URL = <code id=burl></code>/v1 &nbsp;|&nbsp; Model = <code>aether-flight-surgeon-v1</code> &nbsp;|&nbsp; Auth = <code>Authorization: Bearer &lt;API_KEY&gt;</code></div>
+<p>API key: <input id=k type=password placeholder="X-API-Key / Bearer token"> <small>(kept in this page only)</small></p>
+<h3>1. Ask / Chat (English / 中文)</h3><input id=q placeholder="CO2 is 4 mmHg, what should we do?  /  血糖很低怎么办"><button onclick=ask()>Ask (/ask)</button><button onclick=chat()>Chat (/v1/chat/completions)</button>
 <h3>2. Triage preset</h3><div id=pre></div><h3>Answer</h3><pre id=out>—</pre>
-<script>const P=%PRESETS%;pre.innerHTML=Object.keys(P).map(n=>`<button onclick="tri('${n}')">${n}</button>`).join('');
-async function post(u,b){const r=await fetch(u,{method:'POST',headers:{'X-API-Key':k.value},body:JSON.stringify(b)});return r.json()}
+<script>const P=%PRESETS%;burl.textContent=location.origin;pre.innerHTML=Object.keys(P).map(n=>`<button onclick="tri('${n}')">${n}</button>`).join('');
+async function post(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json','X-API-Key':k.value,'Authorization':'Bearer '+k.value},body:JSON.stringify(b)});return r.json()}
 async function ask(){out.textContent='…';out.textContent=JSON.stringify(await post('/ask',{question:q.value}),null,1)}
+async function chat(){out.textContent='…';out.textContent=JSON.stringify(await post('/v1/chat/completions',{model:'aether-flight-surgeon-v1',messages:[{role:'user',content:q.value}]}),null,1)}
 async function tri(n){out.textContent='…';out.textContent=JSON.stringify(await post('/triage',P[n]),null,1)}</script>"""
 
 class H(BaseHTTPRequestHandler):
@@ -151,11 +238,21 @@ class H(BaseHTTPRequestHandler):
         path, pk = self._route(); host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host", "")
         base = f"https://{host}" if self.headers.get("X-Forwarded-Proto", "") == "https" or "trycloudflare" in host else f"http://{host}"
         if path == "/health": return self._send(200, {"status": "ok", "auth_required": bool(api_key()), "tier2": type(PIPE.tier2).__name__, "rag_text_clf": PIPE.rag.text_clf is not None, "early_warning": PIPE.early is not None})
+        if path in ("/v1/models", "/models"): return self._send(200, {"object": "list", "data": OPENAI_MODELS})
         if path in ("/", "/index.html"): return self._send(200, PAGE.replace("%PRESETS%", json.dumps(PRESETS)), "text/html")
         if path == "/openapi.json": return self._send(200, openapi(base))
         if path == "/tools": return self._send(200, {"claude_tools": [{"name": t["name"], "description": t["description"], "input_schema": t["inputSchema"]} for t in TOOLS],
                                                       "openai_tools": [{"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["inputSchema"]}} for t in TOOLS]})
         self._send(404, {"error": "not found"})
+    def _send_sse_chat(self, resp: dict):
+        content = resp["choices"][0]["message"]["content"]
+        c1 = {"id": resp["id"], "object": "chat.completion.chunk", "created": resp["created"], "model": resp["model"],
+              "choices": [{"index": 0, "delta": {"role": "assistant", "content": content}, "finish_reason": None}]}
+        c2 = {"id": resp["id"], "object": "chat.completion.chunk", "created": resp["created"], "model": resp["model"],
+              "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+        raw = f"data: {json.dumps(c1, ensure_ascii=False)}\n\ndata: {json.dumps(c2, ensure_ascii=False)}\n\ndata: [DONE]\n\n".encode()
+        self.send_response(200); self.send_header("Content-Type", "text/event-stream; charset=utf-8"); self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Access-Control-Allow-Origin", "*"); self.send_header("Cache-Control", "no-store"); self.end_headers(); self.wfile.write(raw)
     def do_POST(self):
         path, pk = self._route()
         if not self._authed(pk): return self._send(401, {"error": "missing or invalid API key (X-API-Key header, Bearer token, or /k/<key>/ path)"}, extra={"WWW-Authenticate": "Bearer"})
@@ -169,7 +266,10 @@ class H(BaseHTTPRequestHandler):
                 return self._send(code, resp)
             fn = ROUTES.get(path)
             if not fn: return self._send(404, {"error": "not found"})
-            self._send(200, fn(body))
+            res = fn(body)
+            if path in ("/v1/chat/completions", "/chat/completions") and body.get("stream") and "choices" in res:
+                return self._send_sse_chat(res)
+            self._send(200, res)
         except Exception as e: self._send(400, {"error": f"{type(e).__name__}: {e}"})
     def log_message(self, *a): pass
 

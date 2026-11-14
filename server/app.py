@@ -257,3 +257,21 @@ def embed_text(req: EmbedRequest) -> Dict[str, Any]:
         "backend": pipe.rag.backend_name,
         "embedding_256d": [round(float(x), 6) for x in vec],
     }
+
+
+@app.get("/v1/models")
+def v1_models() -> Dict[str, Any]:
+    return {
+        "object": "list",
+        "data": [
+            {"id": "aether-flight-surgeon-v1", "object": "model", "owned_by": "project-aether"},
+            {"id": "aether-triage-v1", "object": "model", "owned_by": "project-aether"},
+            {"id": "aether-embedding-v1", "object": "model", "owned_by": "project-aether"},
+        ],
+    }
+
+
+@app.post("/v1/chat/completions")
+def v1_chat_completions(body: Dict[str, Any]) -> Dict[str, Any]:
+    from scripts.demo_server import chat_completions
+    return chat_completions(body)
