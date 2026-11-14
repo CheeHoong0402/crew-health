@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AETHER Autonomous Flight Surgeon Triage Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "timestamp_utc",
+    "comms_mode",
+    "alert_level",
+    "time_to_criticality_minutes",
+    "detected_syndromes",
+    "shap_root_causes",
+    "hbm_3d_highlight_zones",
+    "immediate_crew_actions",
+    "hardware_bus_directives",
+    "offline_medical_kit_lookup"
+  ],
+  "properties": {
+    "timestamp_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "comms_mode": {
+      "type": "string",
+      "enum": [
+        "OFFLINE_AUTONOMOUS_EDGE",
+        "LIVE_CLOUDFLARE_TUNNEL_API",
+        "HYBRID_WEBGPU_EDGE"
+      ]
+    },
+    "alert_level": {
+      "type": "string",
+      "enum": [
+        "NOMINAL_GREEN",
+        "CAUTION_AMBER",
+        "CRITICAL_RED"
+      ]
+    },
+    "time_to_criticality_minutes": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "detected_syndromes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "shap_root_causes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["feature", "value", "impact_weight"],
+        "properties": {
+          "feature": { "type": "string", "minLength": 1 },
+          "value": { "type": "number" },
+          "impact_weight": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "hbm_3d_highlight_zones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["anatomical_region", "risk_score", "color_hex"],
+        "properties": {
+          "anatomical_region": { "type": "string", "minLength": 1 },
+          "risk_score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "color_hex": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          }
+        }
+      }
+    },
+    "immediate_crew_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "hardware_bus_directives": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "offline_medical_kit_lookup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recommended_agent", "openfda_contraindication_check"],
+      "properties": {
+        "recommended_agent": { "type": "string", "minLength": 1 },
+        "openfda_contraindication_check": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

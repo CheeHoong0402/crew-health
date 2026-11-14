@@ -1,0 +1,51 @@
+# Project AETHER Strict Section 6 JSON Grammar for llama.cpp (Tier 4 Action SLM)
+root ::= "{" ws
+  "\"timestamp_utc\":" ws iso-utc "," ws
+  "\"comms_mode\":" ws comms-mode "," ws
+  "\"alert_level\":" ws alert-level "," ws
+  "\"time_to_criticality_minutes\":" ws int-or-null "," ws
+  "\"detected_syndromes\":" ws string-array "," ws
+  "\"shap_root_causes\":" ws shap-array "," ws
+  "\"hbm_3d_highlight_zones\":" ws zone-array "," ws
+  "\"immediate_crew_actions\":" ws string-array-nonempty "," ws
+  "\"hardware_bus_directives\":" ws string-array "," ws
+  "\"offline_medical_kit_lookup\":" ws med-kit ws
+"}"
+
+comms-mode ::= "\"OFFLINE_AUTONOMOUS_EDGE\"" | "\"LIVE_CLOUDFLARE_TUNNEL_API\"" | "\"HYBRID_WEBGPU_EDGE\""
+alert-level ::= "\"NOMINAL_GREEN\"" | "\"CAUTION_AMBER\"" | "\"CRITICAL_RED\""
+
+iso-utc ::= "\"" [0-9] [0-9] [0-9] [0-9] "-" [0-9] [0-9] "-" [0-9] [0-9] "T" [0-9] [0-9] ":" [0-9] [0-9] ":" [0-9] [0-9] "Z\""
+
+shap-item ::= "{" ws
+  "\"feature\":" ws string "," ws
+  "\"value\":" ws number "," ws
+  "\"impact_weight\":" ws unit-float ws
+"}"
+shap-array ::= "[" ws shap-item ("," ws shap-item)* ws "]"
+
+zone-item ::= "{" ws
+  "\"anatomical_region\":" ws string "," ws
+  "\"risk_score\":" ws unit-float "," ws
+  "\"color_hex\":" ws hex-color ws
+"}"
+zone-array ::= "[" ws (zone-item ("," ws zone-item)*)? ws "]"
+
+med-kit ::= "{" ws
+  "\"recommended_agent\":" ws string "," ws
+  "\"openfda_contraindication_check\":" ws string ws
+"}"
+
+hex-color ::= "\"#" hex hex hex hex hex hex "\""
+hex ::= [0-9A-Fa-f]
+
+string-array ::= "[" ws (string ("," ws string)*)? ws "]"
+string-array-nonempty ::= "[" ws string ("," ws string)* ws "]"
+
+int-or-null ::= int | "null"
+int ::= [0-9]+
+unit-float ::= ("0" ("." [0-9]+)? | "1" ("." "0"+)?)
+number ::= "-"? ([0-9]+ ("." [0-9]+)?)
+
+string ::= "\"" ( [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" hex hex hex hex) )* "\""
+ws ::= ([ \t\n]*)

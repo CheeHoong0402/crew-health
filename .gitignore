@@ -1,0 +1,7 @@
+__pycache__/
+data/generated/
+artifacts/aether_protocols_256d.json
+artifacts/*.gguf
+*.onnx
+.env
+info.txt
