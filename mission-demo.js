@@ -81,7 +81,7 @@ export function analyseMission(mission, profile) {
         assignment.interval_end_utc >= (row.interval_end_utc || row.timestamp_utc));
   }
   const excludedDose = doseRows.filter(row => !verified(row));
-  if (excludedDose.length) add('instrument-quality', 'exposure', 'Dosimeter readings excluded from totals', excludedDose.length + ' unverified or faulty observations', 'Valid quality, verified clock, calibration and astronaut assignment required', excludedDose, 'PROC-RAD');
+  if (excludedDose.length) add('instrument-quality', 'exposure', 'Dosimeter readings need verification', excludedDose.length + ' readings lack the checks required for dose totals', 'Valid quality, verified clock, calibration and astronaut assignment required', excludedDose, 'PROC-RAD');
   const segments = [];
   for (const row of doseRows.filter(row => ['interval_dose', 'interval_average_rate'].includes(row.reading_type) && verified(row))) {
     segments.push({ start: row.interval_start_utc, end: row.interval_end_utc, dose: row.reading_type === 'interval_dose' ? +row.value : +row.value * seconds(row.interval_end_utc, row.interval_start_utc) / 3600, evidence: [row] });
