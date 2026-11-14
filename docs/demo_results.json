@@ -22,7 +22,7 @@
  {
   "check": "nominal: Tier3 interlock < 5 ms",
   "pass": true,
-  "detail": "0.008 ms"
+  "detail": "0.006 ms"
  },
  {
   "check": "nominal: interlock alert in ['NOMINAL_GREEN']",
@@ -37,7 +37,7 @@
  {
   "check": "notebook_sample: Tier3 interlock < 5 ms",
   "pass": true,
-  "detail": "0.008 ms"
+  "detail": "0.009 ms"
  },
  {
   "check": "SPE_storm: Section-6 JSON schema valid",
@@ -47,7 +47,7 @@
  {
   "check": "SPE_storm: Tier3 interlock < 5 ms",
   "pass": true,
-  "detail": "0.007 ms"
+  "detail": "0.029 ms"
  },
  {
   "check": "SPE_storm: interlock alert in ['CRITICAL_RED']",
@@ -62,7 +62,7 @@
  {
   "check": "CO2_toxic: Tier3 interlock < 5 ms",
   "pass": true,
-  "detail": "0.007 ms"
+  "detail": "0.01 ms"
  },
  {
   "check": "CO2_toxic: interlock alert in ['CRITICAL_RED']",
@@ -77,7 +77,7 @@
  {
   "check": "hypoxia: Tier3 interlock < 5 ms",
   "pass": true,
-  "detail": "0.007 ms"
+  "detail": "0.011 ms"
  },
  {
   "check": "hypoxia: interlock alert in ['CRITICAL_RED']",
@@ -107,7 +107,7 @@
  {
   "check": "clavicle_impact: Tier3 interlock < 5 ms",
   "pass": true,
-  "detail": "0.006 ms"
+  "detail": "0.007 ms"
  },
  {
   "check": "Final alert never below Tier3 interlock",
@@ -117,11 +117,11 @@
  {
   "check": "Scan matching top-1 accuracy >= 0.90",
   "pass": true,
-  "detail": "143/144  misses=[('skin_erythema_radiation_13.png', 'skin_normal')]"
+  "detail": "144/144  misses=[]"
  },
  {
   "check": "Pipeline p95 latency < 100 ms",
   "pass": true,
-  "detail": "p50=32.7 ms p95=43.3 ms"
+  "detail": "p50=17.6 ms p95=21.1 ms"
  }
 ]

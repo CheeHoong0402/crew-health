@@ -15,6 +15,11 @@ OUT = {}
 def interlock_label(kw):
     t = TelemetryInput(**kw); return RANK[evaluate_safety_interlock(t, compute_hbm_state(t)).alert_level], t
 TI_FIELDS = {f.name for f in dataclasses.fields(TelemetryInput)}
+def row_kw_exact(r):
+    """CSV row -> TelemetryInput kwargs. CSV stores EFFECTIVE shoulder clearance; invert to the baseline so Tier-1 reproduces it."""
+    kw = {k: float(r[k]) for k in r if k in TI_FIELDS}; kw["recent_suit_impacts_7d"] = int(kw["recent_suit_impacts_7d"])
+    eff = compute_hbm_state(TelemetryInput(**kw)).effective_hut_shoulder_clearance_mm
+    kw["baseline_shoulder_clearance_mm"] = 18.0 + (float(r["suit_shoulder_clearance_mm"]) - eff); return kw
 
 # ------------------------------------------------------------------ data
 X, y = t2._load_telemetry_csv(t2.DEFAULT_DATASET_CSV)
@@ -26,11 +31,9 @@ Xtr, ytr, Xva, yva, Xte, yte = X[itr], y[itr], X[iva], y[iva], X[ite], y[ite]
 print(f"split train/val/test = {len(itr)}/{len(iva)}/{len(ite)}")
 
 # label circularity check: do CSV labels equal the Tier-3 interlock on the same rows?
-agree = 0; N = 1500
+agree = 0; N = 5000
 for i in ite[:N]:
-    kw = {k: float(rows[i][k]) for k in rows[i] if k in TI_FIELDS}
-    kw["recent_suit_impacts_7d"] = int(kw["recent_suit_impacts_7d"])
-    lab, _ = interlock_label(kw); agree += (lab == y[i])
+    lab, _ = interlock_label(row_kw_exact(rows[i])); agree += (lab == y[i])
 OUT["label_vs_interlock_agreement"] = round(agree / N, 4)
 print(f"CSV label == Tier-3 interlock on same rows: {agree/N:.1%}  (labels are rule-generated => accuracy is partly circular)")
 
@@ -40,17 +43,20 @@ EXT = [dict(goes_proton_flux_pfu=(15, 3000)), dict(dosimeter_rate_usv_hr=(150, 6
        dict(systolic_bp_mmhg=(60, 87)), dict(systolic_bp_mmhg=(165, 210)), dict(resting_hr_bpm=(125, 190)),
        dict(blood_glucose_mg_dl=(30, 66)), dict(blood_glucose_mg_dl=(260, 500)), dict(core_temp_c=(38.7, 41.5)),
        dict(ltv_imu_peak_g=(2.8, 9.0)), dict(suit_pressure_psi=(2.0, 3.7))]
-def gen_ood(n, seed):
+def row_kw(i):
+    return row_kw_exact(rows[i])
+def gen_ood(n, seed, pool):
+    """Extreme events layered on NATURAL background rows (pool = CSV row ids) so exact-default values never identify augmented rows."""
     rng = random.Random(seed); out = []
     for _ in range(n):
-        kw = {}
+        kw = row_kw(rng.choice(pool))
         for spec in rng.sample(EXT, rng.choice([1, 1, 2, 3])):
             for k, (lo, hi) in spec.items(): kw[k] = round(rng.uniform(lo, hi), 3)
         lab, t = interlock_label(kw); out.append((t, lab))
     return out
 def to_xy(items):
     return np.vstack([t2.extract_feature_vector(t) for t, _ in items]), np.array([l for _, l in items])
-Xood_tr, yood_tr = to_xy(gen_ood(5000, 111)); Xood_te, yood_te = to_xy(gen_ood(3000, 999))
+Xood_tr, yood_tr = to_xy(gen_ood(5000, 111, list(itr))); Xood_te, yood_te = to_xy(gen_ood(3000, 999, list(ite)))
 print("OOD test class mix:", collections.Counter(yood_te.tolist()))
 
 # ------------------------------------------------------------------ train configs
@@ -89,13 +95,17 @@ OUT["tier2_models"] = tab
 
 # hybrid (plan architecture): final = max(model, interlock)
 final = res["D_tuned+extremes"][0]
-ood_items = gen_ood(3000, 999); pm = final.predict(Xood_te); il = yood_te  # interlock label == ood label by construction
+pm = final.predict(Xood_te); il = yood_te  # interlock label == ood label by construction
 OUT["hybrid_ood_red_recall"] = 1.0
 joblib.dump({"model": final, "feature_columns": list(t2.FEATURE_COLUMNS), "config": best_cfg}, ROOT / "artifacts" / "tier2_hgb_tuned.joblib")
 sz = (ROOT / "artifacts" / "tier2_hgb_tuned.joblib").stat().st_size / 1e6
 print(f"saved artifacts/tier2_hgb_tuned.joblib ({sz:.2f} MB)")
 OUT["tier2_model_size_mb"] = round(sz, 2)
 
+dflt = t2.extract_feature_vector(TelemetryInput()); pd_ = final.predict_proba(dflt)[0]
+print(f"REGRESSION default nominal TelemetryInput -> P(GREEN/AMBER/RED) = {np.round(pd_,3)}  (must be GREEN)")
+OUT["default_nominal_proba"] = [round(float(x), 4) for x in pd_]
+assert int(np.argmax(pd_)) == 0, "default nominal input classified non-green (shortcut leakage?)"
 # per-scenario recall on test
 pt = final.predict(Xte); st = np.array([r["scenario_type"] for r in rows])[ite]
 print("\nper-scenario accuracy (tuned+extremes, test):")
@@ -166,7 +176,7 @@ schema = json.load(open(ROOT / "data/schema/triage_output.schema.json")); val = 
 pipe = pl.AetherPipeline(); rng = np.random.default_rng(0); samp = rng.choice(ite, 1500, replace=False)
 corr = unsafe = valid = 0; wall = []; per_t = collections.defaultdict(list); confm = np.zeros((3, 3), int)
 for i in samp:
-    kw = {k: float(rows[i][k]) for k in rows[i] if k in TI_FIELDS}; kw["recent_suit_impacts_7d"] = int(kw["recent_suit_impacts_7d"])
+    kw = row_kw_exact(rows[i])
     s = time.perf_counter(); out, d = pipe.run(TelemetryInput(**kw)); wall.append((time.perf_counter() - s) * 1e3)
     pred = RANK[out["alert_level"]]; confm[y[i], pred] += 1; corr += pred == y[i]; unsafe += (y[i] == 2 and pred < 2); valid += not list(val.iter_errors(out))
     for k, v in d.__dict__.items(): pass

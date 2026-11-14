@@ -1,0 +1,534 @@
+{
+ "snapshot_only": {
+  "auroc": 0.7519,
+  "recall": 0.4349,
+  "false_alarm_rate": 0.0937,
+  "precision": 0.3053,
+  "thr": 0.2837,
+  "n_test": 6752,
+  "pos_rate": 0.0865,
+  "recall_by_family": {
+   "ars": [
+    0.146,
+    48
+   ],
+   "bone": [
+    0.429,
+    28
+   ],
+   "career": [
+    0.375,
+    16
+   ],
+   "co2": [
+    0.776,
+    67
+   ],
+   "dust": [
+    0.64,
+    50
+   ],
+   "gluc": [
+    0.22,
+    41
+   ],
+   "impact_sudden": [
+    0.128,
+    39
+   ],
+   "infect": [
+    0.583,
+    36
+   ],
+   "none": [
+    0.257,
+    101
+   ],
+   "ortho": [
+    0.765,
+    68
+   ],
+   "sleep": [
+    0.667,
+    42
+   ],
+   "spe_sudden": [
+    0.083,
+    48
+   ]
+  },
+  "operating_points": {
+   "0.01": {
+    "row_recall": 0.209,
+    "false_alarms_per_30d_healthy_crew": 0.0,
+    "event_recall_by_family": {
+     "co2": [
+      0.55,
+      20
+     ],
+     "dust": [
+      0.889,
+      18
+     ],
+     "decoy_or_noise": [
+      0.129,
+      31
+     ],
+     "spe_sudden": [
+      0.0,
+      14
+     ],
+     "bone": [
+      0.091,
+      11
+     ],
+     "ortho": [
+      0.667,
+      21
+     ],
+     "sleep": [
+      0.385,
+      13
+     ],
+     "impact_sudden": [
+      0.0,
+      16
+     ],
+     "infect": [
+      0.0,
+      10
+     ],
+     "ars": [
+      0.067,
+      15
+     ],
+     "gluc": [
+      0.0,
+      16
+     ]
+    },
+    "event_recall_gradual_mean": 0.331
+   },
+   "0.02": {
+    "row_recall": 0.296,
+    "false_alarms_per_30d_healthy_crew": 0.16,
+    "event_recall_by_family": {
+     "co2": [
+      0.7,
+      20
+     ],
+     "dust": [
+      0.889,
+      18
+     ],
+     "decoy_or_noise": [
+      0.194,
+      31
+     ],
+     "spe_sudden": [
+      0.0,
+      14
+     ],
+     "bone": [
+      0.273,
+      11
+     ],
+     "ortho": [
+      0.905,
+      21
+     ],
+     "sleep": [
+      0.615,
+      13
+     ],
+     "impact_sudden": [
+      0.0,
+      16
+     ],
+     "infect": [
+      0.5,
+      10
+     ],
+     "ars": [
+      0.133,
+      15
+     ],
+     "gluc": [
+      0.0,
+      16
+     ]
+    },
+    "event_recall_gradual_mean": 0.502
+   },
+   "0.05": {
+    "row_recall": 0.363,
+    "false_alarms_per_30d_healthy_crew": 0.92,
+    "event_recall_by_family": {
+     "co2": [
+      0.85,
+      20
+     ],
+     "dust": [
+      0.889,
+      18
+     ],
+     "decoy_or_noise": [
+      0.194,
+      31
+     ],
+     "spe_sudden": [
+      0.0,
+      14
+     ],
+     "bone": [
+      0.455,
+      11
+     ],
+     "ortho": [
+      0.952,
+      21
+     ],
+     "sleep": [
+      0.692,
+      13
+     ],
+     "impact_sudden": [
+      0.062,
+      16
+     ],
+     "infect": [
+      0.8,
+      10
+     ],
+     "ars": [
+      0.133,
+      15
+     ],
+     "gluc": [
+      0.125,
+      16
+     ]
+    },
+    "event_recall_gradual_mean": 0.612
+   },
+   "0.1": {
+    "row_recall": 0.435,
+    "false_alarms_per_30d_healthy_crew": 2.06,
+    "event_recall_by_family": {
+     "co2": [
+      0.9,
+      20
+     ],
+     "dust": [
+      0.889,
+      18
+     ],
+     "decoy_or_noise": [
+      0.419,
+      31
+     ],
+     "spe_sudden": [
+      0.071,
+      14
+     ],
+     "bone": [
+      0.727,
+      11
+     ],
+     "ortho": [
+      1.0,
+      21
+     ],
+     "sleep": [
+      0.846,
+      13
+     ],
+     "impact_sudden": [
+      0.125,
+      16
+     ],
+     "infect": [
+      0.8,
+      10
+     ],
+     "ars": [
+      0.267,
+      15
+     ],
+     "gluc": [
+      0.312,
+      16
+     ]
+    },
+    "event_recall_gradual_mean": 0.718
+   }
+  }
+ },
+ "temporal": {
+  "auroc": 0.7691,
+  "recall": 0.5051,
+  "false_alarm_rate": 0.0884,
+  "precision": 0.3512,
+  "thr": 0.2485,
+  "n_test": 6752,
+  "pos_rate": 0.0865,
+  "recall_by_family": {
+   "ars": [
+    0.188,
+    48
+   ],
+   "bone": [
+    0.714,
+    28
+   ],
+   "career": [
+    0.562,
+    16
+   ],
+   "co2": [
+    0.821,
+    67
+   ],
+   "dust": [
+    0.68,
+    50
+   ],
+   "gluc": [
+    0.439,
+    41
+   ],
+   "impact_sudden": [
+    0.231,
+    39
+   ],
+   "infect": [
+    0.583,
+    36
+   ],
+   "none": [
+    0.287,
+    101
+   ],
+   "ortho": [
+    0.765,
+    68
+   ],
+   "sleep": [
+    0.714,
+    42
+   ],
+   "spe_sudden": [
+    0.188,
+    48
+   ]
+  },
+  "operating_points": {
+   "0.01": {
+    "row_recall": 0.356,
+    "false_alarms_per_30d_healthy_crew": 0.22,
+    "event_recall_by_family": {
+     "co2": [
+      0.7,
+      20
+     ],
+     "dust": [
+      0.944,
+      18
+     ],
+     "decoy_or_noise": [
+      0.161,
+      31
+     ],
+     "spe_sudden": [
+      0.0,
+      14
+     ],
+     "bone": [
+      0.818,
+      11
+     ],
+     "ortho": [
+      1.0,
+      21
+     ],
+     "sleep": [
+      0.846,
+      13
+     ],
+     "impact_sudden": [
+      0.0,
+      16
+     ],
+     "infect": [
+      0.8,
+      10
+     ],
+     "ars": [
+      0.2,
+      15
+     ],
+     "gluc": [
+      0.0,
+      16
+     ]
+    },
+    "event_recall_gradual_mean": 0.663
+   },
+   "0.02": {
+    "row_recall": 0.385,
+    "false_alarms_per_30d_healthy_crew": 0.35,
+    "event_recall_by_family": {
+     "co2": [
+      0.75,
+      20
+     ],
+     "dust": [
+      0.944,
+      18
+     ],
+     "decoy_or_noise": [
+      0.226,
+      31
+     ],
+     "spe_sudden": [
+      0.0,
+      14
+     ],
+     "bone": [
+      0.818,
+      11
+     ],
+     "ortho": [
+      1.0,
+      21
+     ],
+     "sleep": [
+      0.846,
+      13
+     ],
+     "impact_sudden": [
+      0.062,
+      16
+     ],
+     "infect": [
+      0.8,
+      10
+     ],
+     "ars": [
+      0.2,
+      15
+     ],
+     "gluc": [
+      0.25,
+      16
+     ]
+    },
+    "event_recall_gradual_mean": 0.701
+   },
+   "0.05": {
+    "row_recall": 0.44,
+    "false_alarms_per_30d_healthy_crew": 1.03,
+    "event_recall_by_family": {
+     "co2": [
+      0.85,
+      20
+     ],
+     "dust": [
+      0.944,
+      18
+     ],
+     "decoy_or_noise": [
+      0.323,
+      31
+     ],
+     "spe_sudden": [
+      0.071,
+      14
+     ],
+     "bone": [
+      0.909,
+      11
+     ],
+     "ortho": [
+      1.0,
+      21
+     ],
+     "sleep": [
+      0.923,
+      13
+     ],
+     "impact_sudden": [
+      0.125,
+      16
+     ],
+     "infect": [
+      0.9,
+      10
+     ],
+     "ars": [
+      0.2,
+      15
+     ],
+     "gluc": [
+      0.5,
+      16
+     ]
+    },
+    "event_recall_gradual_mean": 0.778
+   },
+   "0.1": {
+    "row_recall": 0.505,
+    "false_alarms_per_30d_healthy_crew": 1.76,
+    "event_recall_by_family": {
+     "co2": [
+      0.9,
+      20
+     ],
+     "dust": [
+      0.944,
+      18
+     ],
+     "decoy_or_noise": [
+      0.387,
+      31
+     ],
+     "spe_sudden": [
+      0.143,
+      14
+     ],
+     "bone": [
+      0.909,
+      11
+     ],
+     "ortho": [
+      1.0,
+      21
+     ],
+     "sleep": [
+      0.923,
+      13
+     ],
+     "impact_sudden": [
+      0.188,
+      16
+     ],
+     "infect": [
+      0.9,
+      10
+     ],
+     "ars": [
+      0.267,
+      15
+     ],
+     "gluc": [
+      0.625,
+      16
+     ]
+    },
+    "event_recall_gradual_mean": 0.808
+   }
+  }
+ },
+ "gradual_mean_recall": 0.6073,
+ "latency_ms_p95": 1.02
+}

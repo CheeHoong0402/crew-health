@@ -34,6 +34,10 @@ def _load_schema() -> Dict:
         return json.load(f)
 
 
+ML_CAN_ESCALATE_TO_RED = False
+ML_CAN_ESCALATE_TO_AMBER = False  # snapshot ML is advisory until validated on independent (non-rule-derived) labels; see docs/REPORT.md
+
+
 class Tier4ActionSLM:
     def __init__(
         self,
@@ -90,9 +94,13 @@ class Tier4ActionSLM:
 
         if SEVERITY_RANK.get(tier2.predicted_label, 0) > SEVERITY_RANK.get(final_alert, 0):
             # ML can escalate early prodromal risk, never downgrade Tier 3
-            if tier2.probabilities.get("CRITICAL_RED", 0.0) >= 0.72:
+            # Policy (CTO decision): ML is advisory by default (both flags False). CRITICAL_RED is reserved for the
+            # deterministic Tier 3 interlock or an abnormal-scan protocol; set ML_CAN_ESCALATE_TO_RED=True to restore old behaviour.
+            p_red = tier2.probabilities.get("CRITICAL_RED", 0.0)
+            p_amb = tier2.probabilities.get("CAUTION_AMBER", 0.0)
+            if p_red >= 0.72 and ML_CAN_ESCALATE_TO_RED:
                 final_alert = "CRITICAL_RED"
-            elif SEVERITY_RANK[final_alert] == 0 and tier2.probabilities.get("CAUTION_AMBER", 0.0) >= 0.65:
+            elif ML_CAN_ESCALATE_TO_AMBER and SEVERITY_RANK[final_alert] == 0 and (p_amb >= 0.65 or p_red >= 0.72):
                 final_alert = "CAUTION_AMBER"
 
         active_protocols: List[Dict] = []

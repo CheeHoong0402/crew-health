@@ -1,0 +1,26 @@
+{
+ "text": {
+  "n": 420,
+  "recall_at_1": 1.0,
+  "recall_at_3": 1.0,
+  "cv_phrase_heldout": 0.9846,
+  "ms_per_query": 1.22,
+  "C": 2.0
+ },
+ "image": {
+  "n_test": 48,
+  "acc_8class": 1.0,
+  "acc_normal_vs_abnormal": 1.0,
+  "prototype_baseline": 0.9792
+ },
+ "cross_modal": {
+  "text_to_image": {
+   "acc": 1.0,
+   "n": 32
+  },
+  "image_to_text": {
+   "acc": 1.0,
+   "n": 32
+  }
+ }
+}

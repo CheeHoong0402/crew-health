@@ -1,5 +1,5 @@
 {
- "label_vs_interlock_agreement": 1.0,
+ "label_vs_interlock_agreement": 0.9994,
  "tier2_models": {
   "A_plain": {
    "in_dist": {
@@ -11,11 +11,11 @@
     "n": 5000
    },
    "ood_extremes": {
-    "acc": 0.308,
-    "macro_f1": 0.157,
-    "red_recall": 0.308,
-    "red_missed": 2076,
-    "red_to_green": 1784,
+    "acc": 0.5093,
+    "macro_f1": 0.225,
+    "red_recall": 0.5093,
+    "red_missed": 1472,
+    "red_to_green": 790,
     "n": 3000
    },
    "note": "no class weights, defaults"
@@ -30,11 +30,11 @@
     "n": 5000
    },
    "ood_extremes": {
-    "acc": 0.4673,
-    "macro_f1": 0.2123,
-    "red_recall": 0.4673,
-    "red_missed": 1598,
-    "red_to_green": 1354,
+    "acc": 0.594,
+    "macro_f1": 0.2484,
+    "red_recall": 0.594,
+    "red_missed": 1218,
+    "red_to_green": 631,
     "n": 3000
    },
    "note": "10x CRITICAL_RED weight (plan Sec.5)"
@@ -49,30 +49,30 @@
     "n": 5000
    },
    "ood_extremes": {
-    "acc": 0.465,
-    "macro_f1": 0.2116,
-    "red_recall": 0.465,
-    "red_missed": 1605,
-    "red_to_green": 1365,
+    "acc": 0.6347,
+    "macro_f1": 0.2588,
+    "red_recall": 0.6347,
+    "red_missed": 1096,
+    "red_to_green": 607,
     "n": 3000
    },
    "note": "grid-search on val {'lr': 0.05, 'leaves': 15, 'l2': 0.0}"
   },
   "D_tuned+extremes": {
    "in_dist": {
-    "acc": 0.9954,
-    "macro_f1": 0.9947,
-    "red_recall": 0.9972,
-    "red_missed": 4,
+    "acc": 0.9964,
+    "macro_f1": 0.996,
+    "red_recall": 0.9979,
+    "red_missed": 3,
     "red_to_green": 0,
     "n": 5000
    },
    "ood_extremes": {
-    "acc": 1.0,
-    "macro_f1": 1.0,
-    "red_recall": 1.0,
-    "red_missed": 0,
-    "red_to_green": 0,
+    "acc": 0.995,
+    "macro_f1": 0.3325,
+    "red_recall": 0.995,
+    "red_missed": 15,
+    "red_to_green": 10,
     "n": 3000
    },
    "note": "C + 5,000 interlock-labelled extreme scenarios (physics edge cases)"
@@ -80,34 +80,39 @@
  },
  "hybrid_ood_red_recall": 1.0,
  "tier2_model_size_mb": 0.67,
+ "default_nominal_proba": [
+  0.999,
+  0.0006,
+  0.0004
+ ],
  "per_scenario_acc": {
-  "benign_microgravity_shift": 0.9957,
+  "benign_microgravity_shift": 0.9971,
   "bone_career_rad_amber": 0.9947,
   "compound_spe_rover_bone": 1.0,
   "eclss_co2_dust": 1.0,
   "hypercapnic_burnout_amber": 1.0,
-  "metabolic_infectious_crisis": 0.9828,
-  "nominal": 0.9942,
+  "metabolic_infectious_crisis": 0.9914,
+  "nominal": 0.9947,
   "orthostatic_fluid_crisis": 1.0,
   "prodromal_spe_ars": 1.0,
-  "sans_amber": 0.9946,
+  "sans_amber": 0.9973,
   "suit_clavicle_trauma": 0.994
  },
  "speed": {
   "tier2_single_ms": {
-   "p50": 2.213,
-   "p95": 3.558,
-   "p99": 4.429
+   "p50": 2.226,
+   "p95": 3.657,
+   "p99": 5.381
   },
-  "tier2_batch_rows_per_s": 121771,
-  "tier1_plus_tier3_ms_p95": 0.009
+  "tier2_batch_rows_per_s": 56910,
+  "tier1_plus_tier3_ms_p95": 0.017
  },
  "rag_text": {
   "n": 420,
   "recall_at_1": 0.569,
   "recall_at_3": 0.8,
   "triplet_acc": 0.85,
-  "retrieve_ms_p95": 0.214
+  "retrieve_ms_p95": 0.342
  },
  "rag_multimodal_text_to_image": {
   "n": 32,
@@ -119,13 +124,13 @@
  },
  "end_to_end": {
   "n": 1500,
-  "alert_acc": 0.9993,
-  "red_missed": 0,
+  "alert_acc": 0.9987,
+  "red_missed": 2,
   "schema_valid_pct": 100.0,
   "wall_ms": {
-   "p50": 12.91,
-   "p95": 19.67,
-   "p99": 22.52
+   "p50": 14.15,
+   "p95": 21.71,
+   "p99": 24.46
   },
   "confusion_true_x_pred": [
    [
@@ -135,13 +140,13 @@
    ],
    [
     0,
-    413,
-    1
+    414,
+    0
    ],
    [
     0,
-    0,
-    425
+    2,
+    423
    ]
   ]
  }

@@ -36,6 +36,7 @@ class PipelineDiagnostics:
     scan_match: Optional[Dict]
     tier4_backend: str
     total_ms: float
+    early_warning: Optional[Dict] = None
 
 
 class AetherPipeline:
@@ -47,13 +48,20 @@ class AetherPipeline:
             self.tier2 = Tier2SklearnEngine()  # tuned sklearn fallback, no extra deps
         self.rag = Tier35MultimodalRAG()
         self.tier4 = Tier4ActionSLM()
+        try:  # advisory temporal early-warning model (scripts/train_temporal_tier2.py); optional
+            from engine.tier2_temporal import TemporalEarlyWarning
+            self.early = TemporalEarlyWarning()
+        except Exception:
+            self.early = None
 
     def run(
         self,
         telemetry: TelemetryInput,
         scan_image: Optional[Image.Image] = None,
         comms_mode: str = "OFFLINE_AUTONOMOUS_EDGE",
+        history: Optional[list] = None,
     ) -> Tuple[Dict, PipelineDiagnostics]:
+        """history: optional chronological list of prior TelemetryInput (daily, newest last, incl. current) for early warning."""
         t0 = time.perf_counter()
 
         # Tier 1: Deterministic Physics Digital Twin
@@ -85,6 +93,10 @@ class AetherPipeline:
             comms_mode=comms_mode,
         )
 
+        early = None
+        if history and self.early is not None and len(history) >= 2:
+            ew = self.early.predict(history)  # advisory only: never lowers an interlock alert
+            early = {"probability": ew.probability, "triggered": ew.triggered, "threshold": ew.threshold, "top_trends": ew.top_trends}
         total_ms = round((time.perf_counter() - t0) * 1000.0, 3)
         diag = PipelineDiagnostics(
             hbm_state=hbm.to_dict(),
@@ -106,5 +118,6 @@ class AetherPipeline:
             scan_match=scan_match,
             tier4_backend=self.tier4.backend,
             total_ms=total_ms,
+            early_warning=early,
         )
         return triage_json, diag

@@ -261,6 +261,20 @@ class Tier35MultimodalRAG:
         self.vision_std = np.asarray([0.5, 0.5, 0.5], dtype=np.float32).reshape(1, 3, 1, 1)
         self.backend_name = self.index_data.get("embedding_backend", "local_bootstrap_256d")
         self._try_load_onnx_weights()
+        self.text_clf = None
+        self.scan_clf = None
+        self.kind2pid: Dict[str, str] = {}
+        try:  # trained CPU retrievers (scripts/train_retrievers.py); optional
+            import joblib
+            tp = Path(index_path).parent / "rag_text_clf.joblib"
+            sp = Path(index_path).parent / "scan_clf.joblib"
+            if tp.exists():
+                self.text_clf = joblib.load(tp)["model"]
+            if sp.exists():
+                d = joblib.load(sp)
+                self.scan_clf, self.kind2pid = d["model"], d["kind2pid"]
+        except Exception:
+            self.text_clf = self.scan_clf = None
 
     def _try_load_onnx_weights(self) -> None:
         if not self.onnx_dir.exists():
@@ -366,6 +380,18 @@ class Tier35MultimodalRAG:
 
     def match_scan_image(self, image: Image.Image) -> Dict[str, object]:
         """Match an uploaded medical scan image to closest scan finding + NASA protocol."""
+        if self.scan_clf is not None and self.vision_sess is None:
+            from engine.trained_retriever import image_features
+            pr = self.scan_clf.predict_proba([image_features(image)])[0]
+            k = int(np.argmax(pr)); kind = str(self.scan_clf.classes_[k])
+            finding = next((sp["clinical_finding"] for sp in self.scan_prototypes if sp["scan_kind"] == kind), kind.upper())
+            return {
+                "matched_scan_kind": kind,
+                "clinical_finding": finding,
+                "protocol_id": self.kind2pid[kind],
+                "similarity": round(float(pr[k]), 4),
+                "backend": "trained_scan_classifier",
+            }
         img_vec = self.embed_image(image)
         if self.vision_sess is not None or self.scan_matrix is None or len(self.scan_prototypes) == 0:
             # Compare neural embedding directly against protocol document embeddings
@@ -400,6 +426,11 @@ class Tier35MultimodalRAG:
     ) -> Tuple[List[RetrievalMatch], Optional[Dict[str, object]]]:
         q_vec = self.embed_text(query_text, is_query=True)
         scores = (self.doc_matrix @ q_vec).astype(np.float32)
+
+        if self.text_clf is not None:  # blend trained text->protocol probabilities (weight 0.6)
+            pd = self.text_clf.proba_dict(query_text)
+            for i, p in enumerate(self.protocols):
+                scores[i] += 0.6 * float(pd.get(p["id"], 0.0))
 
         scan_match: Optional[Dict[str, object]] = None
         if scan_image is not None:

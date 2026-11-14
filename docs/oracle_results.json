@@ -1,0 +1,8 @@
+{
+ "n": 4000,
+ "agreement": 0.9217,
+ "red_missed": 0,
+ "safer": 313,
+ "unsafe": 0,
+ "sens_amber_or_red": 1.0
+}

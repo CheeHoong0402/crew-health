@@ -1,0 +1,120 @@
+{"anchor": "Solar flare just erupted and protons are climbing, we need to get everyone to the storm shelter", "target_id": "PROTO-SPE-01"}
+{"anchor": "GOES proton channel over threshold, dosimeter alarm sounding on the surface", "target_id": "PROTO-SPE-01"}
+{"anchor": "Radiation storm warning: crew outside, nausea starting, shelter in minutes", "target_id": "PROTO-SPE-01"}
+{"anchor": "Sudden SPE with high dose rate, deploy water wall around sleeping quarters", "target_id": "PROTO-SPE-01"}
+{"anchor": "Energetic particle event in progress, abort EVA and head to the shelter", "target_id": "PROTO-SPE-01"}
+{"anchor": "Fever and queasiness after flare while proton flux is spiking", "target_id": "PROTO-SPE-01"}
+{"anchor": "Active dosimeter reading far above limit during solar particle storm", "target_id": "PROTO-SPE-01"}
+{"anchor": "Space weather alert for protons, antiemetics and shelter protocol needed", "target_id": "PROTO-SPE-01"}
+{"anchor": "Prodromal radiation sickness suspected after coronal mass ejection hit", "target_id": "PROTO-SPE-01"}
+{"anchor": "Dose rate surging, flux above 10 pfu, crew in rover needs to return", "target_id": "PROTO-SPE-01"}
+{"anchor": "Heavy ion and proton shower from the sun, treat as acute radiation emergency", "target_id": "PROTO-SPE-01"}
+{"anchor": "Proton event confirmed by GOES, begin radioprotectant prep", "target_id": "PROTO-SPE-01"}
+{"anchor": "Accumulated lifetime radiation is close to the 600 mSv career cap", "target_id": "PROTO-RAD-02"}
+{"anchor": "Galactic cosmic ray exposure adding up, move sleeping bunk to the best shielded module", "target_id": "PROTO-RAD-02"}
+{"anchor": "Career dose at 90 percent, limit upcoming surface excursions", "target_id": "PROTO-RAD-02"}
+{"anchor": "Neutron bubble detector counts elevated in the sleeping area, no flare activity", "target_id": "PROTO-RAD-02"}
+{"anchor": "Long term dose creeping toward the limit with no solar storm happening", "target_id": "PROTO-RAD-02"}
+{"anchor": "Bone marrow and eye lens dose trending high from background cosmic rays", "target_id": "PROTO-RAD-02"}
+{"anchor": "Chronic radiation budget nearly used up, reassign crew sleep zone", "target_id": "PROTO-RAD-02"}
+{"anchor": "Cumulative exposure above 85 percent of allowable, start antioxidant countermeasures", "target_id": "PROTO-RAD-02"}
+{"anchor": "Radi-N2 daily counts high but the sun is quiet", "target_id": "PROTO-RAD-02"}
+{"anchor": "Solar minimum means more cosmic rays and the career dose is rising", "target_id": "PROTO-RAD-02"}
+{"anchor": "Restrict future EVAs because lifetime dose is approaching its ceiling", "target_id": "PROTO-RAD-02"}
+{"anchor": "No acute proton event, just slow accumulation of organ dose", "target_id": "PROTO-RAD-02"}
+{"anchor": "Rover hit a big bump and the suit shoulder slammed into the collarbone", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Hard jolt over 2.5 g while driving, check clavicle and ribs for fracture", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Suit pressure dropping after a fall, verify integrity right away", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Sharp pain at the shoulder ring after impact in the lunar buggy", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Possible broken clavicle from the upper torso hitting the suit, run ultrasound", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Violent LTV vibration with tight shoulder clearance and weak bones", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Suit blunt trauma during traverse, check for pneumothorax and internal bleeding", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Impact stress on collarbone near fracture threshold after rough terrain", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Crew member fell during EVA and suit may have lost pressure", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Repeated knocks between suit hard torso and bone, halt the vehicle", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Rib pain following collision inside the pressurized suit", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Decompression sickness risk after suit breach and hard impact", "target_id": "PROTO-SUIT-01"}
+{"anchor": "Bone density is falling faster than expected this month", "target_id": "PROTO-BONE-02"}
+{"anchor": "Crew skipped the resistive exercise device for two weeks", "target_id": "PROTO-BONE-02"}
+{"anchor": "Exercise compliance under 80 percent, muscle and bone wasting risk", "target_id": "PROTO-BONE-02"}
+{"anchor": "Monthly bone loss rate above 1.5 percent, adjust squat and deadlift load", "target_id": "PROTO-BONE-02"}
+{"anchor": "Gradual skeletal deconditioning with no injury, verify vitamin D and calcium", "target_id": "PROTO-BONE-02"}
+{"anchor": "Weight bearing workouts were missed and mass retention is dropping", "target_id": "PROTO-BONE-02"}
+{"anchor": "Slow muscle atrophy trend over many days, recalibrate ARED resistance", "target_id": "PROTO-BONE-02"}
+{"anchor": "Weekly trend shows declining bone mineral, schedule body mass verification", "target_id": "PROTO-BONE-02"}
+{"anchor": "Poor adherence to strength training in microgravity", "target_id": "PROTO-BONE-02"}
+{"anchor": "Bone mass retention has slipped below the safe range, no acute event", "target_id": "PROTO-BONE-02"}
+{"anchor": "Countermeasure exercise not being done, long term bone decay", "target_id": "PROTO-BONE-02"}
+{"anchor": "Request SLAMMD measurement because of accelerating bone loss", "target_id": "PROTO-BONE-02"}
+{"anchor": "Only about four hours of sleep for several nights and mood is very low", "target_id": "PROTO-MIND-01"}
+{"anchor": "Crew feels isolated and exhausted, reaction time is slipping", "target_id": "PROTO-MIND-01"}
+{"anchor": "Sleep deprived and irritable with elevated cabin CO2 affecting thinking", "target_id": "PROTO-MIND-01"}
+{"anchor": "Mood score at 3 with poor concentration, postpone risky procedures", "target_id": "PROTO-MIND-01"}
+{"anchor": "Insomnia plus loneliness is degrading performance, no medical emergency", "target_id": "PROTO-MIND-01"}
+{"anchor": "Cognitive errors rising after several short sleep nights", "target_id": "PROTO-MIND-01"}
+{"anchor": "Defer docking and EVA, enforce protected sleep block and light therapy", "target_id": "PROTO-MIND-01"}
+{"anchor": "Psychological decline during isolation, offer private support call", "target_id": "PROTO-MIND-01"}
+{"anchor": "Poor sleep efficiency and depressed mood over the last three days", "target_id": "PROTO-MIND-01"}
+{"anchor": "Burnout from tiredness and stale air, though vitals are normal", "target_id": "PROTO-MIND-01"}
+{"anchor": "Fatigue and low morale, adjust circadian lighting", "target_id": "PROTO-MIND-01"}
+{"anchor": "Hypercapnia combined with lack of rest causing slow thinking", "target_id": "PROTO-MIND-01"}
+{"anchor": "Blood sugar crashed to 55 and crew is shaky and confused, give glucose", "target_id": "PROTO-MET-01"}
+{"anchor": "Glucose above 250 with thirst, run the i-STAT analyzer", "target_id": "PROTO-MET-01"}
+{"anchor": "Core temperature 38.8 suggests infection, isolate the crew member", "target_id": "PROTO-MET-01"}
+{"anchor": "Fever with no radiation or storm involved, check drug dosing in OpenFDA", "target_id": "PROTO-MET-01"}
+{"anchor": "Hypoglycemia episode needing oral glucose gel", "target_id": "PROTO-MET-01"}
+{"anchor": "Febrile illness onboard, turn on HEPA and UV air scrubbers", "target_id": "PROTO-MET-01"}
+{"anchor": "Severe low glucose reading, treat now and monitor", "target_id": "PROTO-MET-01"}
+{"anchor": "High fever and chills, possible infection in the habitat", "target_id": "PROTO-MET-01"}
+{"anchor": "Metabolic derangement, check electrolytes and lactate", "target_id": "PROTO-MET-01"}
+{"anchor": "Diabetic-type spike in blood sugar requiring insulin protocol", "target_id": "PROTO-MET-01"}
+{"anchor": "Temperature climbing past 38.5, infectious crisis suspected", "target_id": "PROTO-MET-01"}
+{"anchor": "Sugar level dangerously low after a long EVA", "target_id": "PROTO-MET-01"}
+{"anchor": "Blurry vision and a flattened back of the eye after months in orbit", "target_id": "PROTO-SANS-01"}
+{"anchor": "Optic disc swelling seen on fundus photo, CO2 slightly raised", "target_id": "PROTO-SANS-01"}
+{"anchor": "Hyperopic shift in eyesight over the mission, elevated blood pressure diastolic", "target_id": "PROTO-SANS-01"}
+{"anchor": "Headward fluid shift causing intracranial pressure and eye changes", "target_id": "PROTO-SANS-01"}
+{"anchor": "Ocular ultrasound shows globe flattening after more than 60 days", "target_id": "PROTO-SANS-01"}
+{"anchor": "Crew reports worsening near vision, cabin CO2 above 2.5", "target_id": "PROTO-SANS-01"}
+{"anchor": "Choroidal folds and papilledema in a long duration astronaut", "target_id": "PROTO-SANS-01"}
+{"anchor": "Schedule retinal scan and fluid shift countermeasure for eye problems", "target_id": "PROTO-SANS-01"}
+{"anchor": "Neuro-ocular syndrome suspected from mild hypercapnia", "target_id": "PROTO-SANS-01"}
+{"anchor": "Visual acuity dropping gradually since launch", "target_id": "PROTO-SANS-01"}
+{"anchor": "Capture bilateral eye imaging, boost CO2 scrubbing below 2 mmHg", "target_id": "PROTO-SANS-01"}
+{"anchor": "Pressure on the optic nerve from fluid moving toward the head", "target_id": "PROTO-SANS-01"}
+{"anchor": "Carbon dioxide at 4 mmHg in the cabin, put on emergency oxygen masks", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "Lunar dust is thick in the air, isolate the airlock", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "Oxygen concentration fell below 19 percent in the habitat", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "Cabin pressure dropping, possible leak", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "Scrubber failure and rising CO2, boost CDRA to maximum", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "Airborne regolith above the limit, activate the electrostatic dust repeller", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "Toxic atmosphere in the module, switch to reserve closed loop oxygen", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "Breathing difficulty from dust inhalation after the airlock cycle", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "Habitat air quality emergency, seal goggles and masks", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "High ppCO2 alarm in the living quarters, move crew out", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "Hypoxia risk because oxygen levels are low", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "Pneumothorax suspected on chest ultrasound after dust exposure", "target_id": "PROTO-ECLSS-01"}
+{"anchor": "Blood pressure 85 over 55 and the crew member nearly fainted", "target_id": "PROTO-CV-01"}
+{"anchor": "Heart rate over 125 at rest, lie down with legs raised", "target_id": "PROTO-CV-01"}
+{"anchor": "Dizzy on standing after landing, plasma volume low", "target_id": "PROTO-CV-01"}
+{"anchor": "Lost over 1.5 kg in two days with low pressure and fast pulse", "target_id": "PROTO-CV-01"}
+{"anchor": "Hypotension and lightheaded after the EVA, start salt water loading", "target_id": "PROTO-CV-01"}
+{"anchor": "Hypertensive reading above 160 over 100, standby AED", "target_id": "PROTO-CV-01"}
+{"anchor": "Cardiac fluid shift problem, use the LBNP suit", "target_id": "PROTO-CV-01"}
+{"anchor": "Possible jugular vein clot, scan with the portable ultrasound", "target_id": "PROTO-CV-01"}
+{"anchor": "Orthostatic intolerance with a racing heartbeat", "target_id": "PROTO-CV-01"}
+{"anchor": "Systolic pressure collapsing, prepare supine positioning", "target_id": "PROTO-CV-01"}
+{"anchor": "Tachycardia and dehydration, give oral fluids", "target_id": "PROTO-CV-01"}
+{"anchor": "Syncope risk when moving from microgravity to surface gravity", "target_id": "PROTO-CV-01"}
+{"anchor": "Everything looks normal, keep up the daily routine", "target_id": "PROTO-NOM-01"}
+{"anchor": "All vitals are in the green, nothing to report", "target_id": "PROTO-NOM-01"}
+{"anchor": "Routine check completed with no abnormal findings", "target_id": "PROTO-NOM-01"}
+{"anchor": "Crew healthy, continue exercise and hydration schedule", "target_id": "PROTO-NOM-01"}
+{"anchor": "Telemetry nominal across all systems", "target_id": "PROTO-NOM-01"}
+{"anchor": "No alarms, no symptoms, standard microgravity adaptation", "target_id": "PROTO-NOM-01"}
+{"anchor": "Baseline readings for heart rate, pressure and temperature are fine", "target_id": "PROTO-NOM-01"}
+{"anchor": "Normal sleep and mood, habitat environment within limits", "target_id": "PROTO-NOM-01"}
+{"anchor": "Steady state, continue standard countermeasures", "target_id": "PROTO-NOM-01"}
+{"anchor": "No emergency, no warning, just logging the usual data", "target_id": "PROTO-NOM-01"}
+{"anchor": "Healthy day on the station with typical readings", "target_id": "PROTO-NOM-01"}
+{"anchor": "All parameters inside the safe envelope", "target_id": "PROTO-NOM-01"}
