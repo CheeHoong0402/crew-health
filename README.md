@@ -11,6 +11,8 @@ Tier 3.5 multimodal RAG, Tier 4 Section-6 JSON). Spec: `docs/architecture_plan.m
     python3 scripts/train_temporal_tier2.py .  # temporal early-warning model (artifacts/tier2_temporal)
     python3 scripts/oracle_check.py .       # independent test vs md thresholds
 
+**Demo:** see `DEMO.md` (`scripts/demo_selftest.py` = one-command check, `scripts/demo_server.py` = web/API demo, stdlib only).
+
 Tier 2 uses LightGBM->ONNX when available, else `engine/tier2_sklearn_fallback.py`.
 Safety: research prototype, not a medical device. Thresholds must be validated by flight-surgeon review.
 
