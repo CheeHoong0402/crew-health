@@ -8,7 +8,7 @@ QA = [("CO2 is 4 mmHg in the cabin", "PROTO-ECLSS-01"), ("lunar dust everywhere,
       ("blood sugar is 50 and he is shaking", "PROTO-MET-01"), ("fever of 39 degrees", "PROTO-MET-01"), ("blood pressure 85/55 and nearly fainted", "PROTO-CV-01"),
       ("rover jolt 4g, shoulder pain", "PROTO-SUIT-01"), ("bone density dropping, skipped exercise", "PROTO-BONE-02"), ("eyesight getting blurry after 90 days", "PROTO-SANS-01"),
       ("slept 4 hours for three nights, mood very low", "PROTO-MIND-01"), ("everything normal today", "PROTO-NOM-01"), ("lifetime radiation dose near 600 mSv limit", "PROTO-RAD-02"),
-      ("太阳耀斑质子风暴，宇航员在外面怎么办", "PROTO-SPE-01"), ("血糖很低，头晕出汗", "PROTO-MET-01"), ("舱内二氧化碳太高", "PROTO-ECLSS-01"), ("血压很低，快要晕倒", "PROTO-CV-01"),
+      ("太阳耀斑质子风暴，宇航员在外面怎么办", "PROTO-SPE-01"), ("血糖很低，头晕出汗", "PROTO-MET-01"), ("CO2 is 4 mmHg", "PROTO-ECLSS-01"), ("血糖 48", "PROTO-MET-01"), ("blood pressure 85/55", "PROTO-CV-01"), ("proton flux 42 pfu", "PROTO-SPE-01"), ("temperature 39.2", "PROTO-MET-01"), ("rover jolt of 4g", "PROTO-SUIT-01"), ("slept 4 hours", "PROTO-MIND-01"), ("CO2 is 2.8 mmHg and vision blurry", "PROTO-SANS-01"), ("舱内二氧化碳太高", "PROTO-ECLSS-01"), ("血压很低，快要晕倒", "PROTO-CV-01"),
       ("漫游车剧烈颠簸，锁骨疼", "PROTO-SUIT-01"), ("骨密度下降，没有锻炼", "PROTO-BONE-02"), ("连续三晚失眠，情绪低落", "PROTO-MIND-01"), ("一切正常，没有异常", "PROTO-NOM-01")]
 ok = 0
 for q, want in QA:
