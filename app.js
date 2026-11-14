@@ -187,7 +187,7 @@ function personalPage(data) {
       <div class="evidence-body"><p>Import a health CSV to review recorded observations. Add symptoms and crew actions as they occur. Collection times describe the record’s coverage.</p>
         <button id="import-csv" class="primary wide">Import health CSV</button><button id="checkin" class="wide">＋ Record check-in</button><button id="report" class="subtle wide">＋ Record symptom or event</button>
         <div class="profile-mission"><h3>Mission context</h3><p>Day ${data.day} · ${escape(data.phase)}</p><p class="small muted">${escape(personal.missionName || 'Mission name not recorded')}</p><button id="mission" class="wide">Edit mission day & phase</button></div>
-        <div class="profile-mission"><h3>CSV test files</h3><p class="small muted">Seven synthetic days per scenario. Test files open in separate profiles.</p><p><a href="healthy-data.csv" download>Healthy data</a> · <a href="unhealthy-data.csv" download>Unhealthy data</a></p></div>
+        <div class="profile-mission"><h3>CSV test files</h3><p class="small muted">Seven synthetic days per scenario. Test files open in separate profiles.</p><p><a href="data/testing/healthy-data.csv" download>Healthy data</a> · <a href="data/testing/unhealthy-data.csv" download>Unhealthy data</a></p></div>
       </div>
     </section>
   </div><section class="panel dashboard-history"><div class="panel-heading"><h2>Data entries & corrections</h2><span class="small muted">Original records retained</span></div>${timeline(data)}</section>`;
@@ -293,7 +293,7 @@ function importCsv() {
   let generation = 0;
   modal('Import check-ins from CSV', `<form>
     <p>Upload comma-separated UTF-8 data, up to 1 MB and 1000 rows. Every row is validated before a single save.</p>
-    <p><a href="healthy-data.csv" download>Download healthy test data</a> · <a href="unhealthy-data.csv" download>Download unhealthy test data</a></p>
+    <p><a href="data/testing/healthy-data.csv" download>Download healthy test data</a> · <a href="data/testing/unhealthy-data.csv" download>Download unhealthy test data</a></p>
     <label>CSV file<input id="csv-file" type="file" accept=".csv,text/csv" required></label>
     <label>Destination<select id="csv-destination" name="destination"><option value="current">Append to current profile</option><option value="test">Separate synthetic test profile</option></select></label>
     <p class="small muted">A separate test profile uses the fictional 7–8 h sleep reference. Existing profiles retain their records, open events and reference settings.</p>

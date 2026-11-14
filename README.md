@@ -18,7 +18,7 @@ After the offline cache reports ready, both pages work without the local server.
 
 On Astronaut profile & data choose **Import CSV**, select a file, review the preview, then import. Files use comma-separated UTF-8 with quoted fields supported, at most 1 MB and 1000 data rows. Required columns are `mission_day,timestamp_utc,phase,data_kind`. Optional columns are `heart_rate_bpm,systolic_mmhg,diastolic_mmhg,temperature_c,sleep_hours,mood,glucose_mgdl,context`. Timestamps use UTC with seconds, such as `2026-11-14T08:10:00Z`. Mark rows `synthetic` or `observed`. Blank measurements remain unavailable. Zero hours of sleep is valid.
 
-The included **healthy-data.csv** and **unhealthy-data.csv** each contain seven fictional days. Synthetic files default to a separate test profile with the fictional 7–8 h reference. The healthy example produces no sleep follow-up. The unhealthy example ends with 5.5 h and 5 h and produces the sleep review warning. Other measurements are available for manual trend review.
+All CSV fixtures are stored in `data/testing/`. The included **healthy-data.csv** and **unhealthy-data.csv** each contain seven fictional days. Synthetic files default to a separate test profile with the fictional 7–8 h reference. The healthy example produces no sleep follow-up. The unhealthy example ends with 5.5 h and 5 h and produces the sleep review warning. Other measurements are available for manual trend review.
 
 Imports append in one save after all rows pass validation. Re-importing identical records skips duplicates, including records later corrected. Changing CSV values creates additional observations. Use the correction workflow for an audited correction.
 

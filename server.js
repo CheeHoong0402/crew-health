@@ -4,8 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const allowed = new Set(['assets/anatomy.glb', 'assets/meshopt_decoder.js', 'assets/anatomy-LICENSE.md', 'assets/anatomy-ATTRIBUTION.md', 'assets/meshopt-LICENSE.md', 'assets/skeleton.glb', 'assets/model-viewer.min.js', 'assets/model-viewer-LICENSE.txt', 'index.html', 'app.js', 'model.js', 'csv.js', 'style.css', 'sw.js', 'manifest.webmanifest', 'anatomy.png', 'healthy-data.csv', 'unhealthy-data.csv']);
-const types = { '.glb': 'model/gltf-binary', '.txt': 'text/plain', '.md': 'text/plain; charset=utf-8', '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.csv': 'text/csv; charset=utf-8', '.webmanifest': 'application/manifest+json' };
+const allowed = new Set(['assets/anatomy.glb', 'assets/meshopt_decoder.js', 'assets/anatomy-LICENSE.md', 'assets/anatomy-ATTRIBUTION.md', 'assets/meshopt-LICENSE.md', 'assets/skeleton.glb', 'assets/model-viewer.min.js', 'assets/model-viewer-LICENSE.txt', 'index.html', 'app.js', 'model.js', 'csv.js', 'style.css', 'sw.js', 'manifest.webmanifest', 'data/testing/healthy-data.csv', 'data/testing/unhealthy-data.csv']);
+const types = { '.glb': 'model/gltf-binary', '.txt': 'text/plain', '.md': 'text/plain; charset=utf-8', '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.csv': 'text/csv; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 http.createServer(async (request, response) => {
   const filename = new URL(request.url, 'http://localhost').pathname.slice(1) || 'index.html';
   if (!allowed.has(filename)) { response.writeHead(404).end('Not found'); return; }

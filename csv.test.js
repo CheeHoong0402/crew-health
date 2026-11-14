@@ -8,7 +8,7 @@ const header = 'mission_day,timestamp_utc,phase,data_kind,sleep_hours,context\n'
 
 test('both supplied scenarios import independently and exercise the sleep rule', async () => {
   for (const [filename, warning] of [['healthy-data.csv', false], ['unhealthy-data.csv', true]]) {
-    const records = await parseCsv(await readFile(new URL(filename, import.meta.url), 'utf8'));
+    const records = await parseCsv(await readFile(new URL('data/testing/' + filename, import.meta.url), 'utf8'));
     assert.equal(records.length, 7);
     const profile = csvTestProfile(records, filename);
     assert.equal(appendCsv(profile, records, filename), 7);
