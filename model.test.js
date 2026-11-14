@@ -88,3 +88,24 @@ test('demo boundaries, missing values, corrections and zero sleep recalculate co
   assert.equal(readingFindings(crew).length, 0);
   assert.equal(crew.records.length, 3);
 });
+
+test('seven-day trends retain zeros and gaps and use corrected daily latest readings', async () => {
+  const { sevenDayReadings } = await import('./model.js');
+  const crew = freshProfile(false);
+  crew.day = 8;
+  crew.records = [
+    { id: 'old', day: 1, time: '2026-11-01T08:00:00Z', values: { sleep: 8 } },
+    { id: 'zero', day: 2, time: '2026-11-02T08:00:00Z', values: { sleep: 0 } },
+    { id: 'first', day: 8, time: '2026-11-08T08:00:00Z', values: { sleep: 4, mood: 'Low' } },
+    { id: 'later', day: 8, time: '2026-11-08T09:00:00Z', values: { sleep: 5 } },
+    { id: 'fix', replaces: 'later', day: 8, time: '2026-11-08T09:00:00Z', values: { sleep: 7 } }
+  ];
+  const days = sevenDayReadings(crew, 'sleep');
+  assert.deepEqual(days.map(item => item.day), [2, 3, 4, 5, 6, 7, 8]);
+  assert.equal(days[0].record.values.sleep, 0);
+  assert.equal(days[1].record, undefined);
+  assert.equal(days[6].record.values.sleep, 7);
+  assert.equal(sevenDayReadings(crew, 'mood')[6].record.values.mood, 'Low');
+  crew.day = 1;
+  assert.equal(sevenDayReadings(crew, 'sleep').length, 1);
+});

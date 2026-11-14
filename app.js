@@ -1,6 +1,7 @@
+import { appendHazardCsv, hazardColumns } from './hazard-csv.js';
 import './assets/model-viewer.min.js';
 customElements.get('model-viewer').meshoptDecoderLocation = new URL('./assets/meshopt_decoder.js', import.meta.url).href;
-import { metrics, systems, sources, freshProfile, latest, currentRecords, sleepFlag, validateRecord, validatePersonal, updateEvent, openRegionEvents, readingFindings, demoRules, addObservation, reviewFinding } from './model.js';
+import { metrics, systems, sources, freshProfile, latest, currentRecords, sleepFlag, validateRecord, validatePersonal, updateEvent, openRegionEvents, readingFindings, demoRules, addObservation, reviewFinding, sevenDayReadings } from './model.js';
 import { parseCsv, appendCsv, csvTestProfile, csvLimit } from './csv.js';
 
 const $ = selector => document.querySelector(selector);
@@ -9,7 +10,7 @@ const utc = value => new Date(value).toISOString().replace('T', ' ').slice(0, 16
 const nowInput = () => new Date().toISOString().slice(0, 16);
 let state = { demo: freshProfile(true), manual: freshProfile(false) };
 let profileKey = localStorage.getItem('crew-health-profile') || 'demo';
-let page = location.hash === '#profile' ? 'profile' : 'dashboard';
+let page = ['#profile', '#log'].includes(location.hash) ? location.hash.slice(1) : 'dashboard';
 let selected = 'heart';
 let back = false;
 const defaultLayers = [
@@ -89,18 +90,18 @@ function modal(title, body, onSubmit) {
 const formEnd = (label = 'Save onboard') => '<p class="form-error" role="alert"></p><button class="primary" type="submit">' + label + '</button></form>';
 function valueOf(data, key) {
   const record = latest(data?.records || [], key);
-  return record ? escape(record.values[key]) + ' <small>' + (metrics[key]?.unit || '') + '</small>' : '<span class="muted">' + (key === 'glucose' ? 'Not scheduled' : 'No reading') + '</span>';
+  return record ? escape(record.values[key]) + ' <small>' + (metrics[key]?.unit || '') + '</small>' : '<span class="muted">' + 'No reading' + '</span>';
 }
 function render() {
   document.querySelectorAll('[data-page]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.page === page)));
   const data = profile();
   $('#main').innerHTML = `
     <section class="mission-bar">
-      <div><h1>${page === 'dashboard' ? 'Health dashboard' : 'Astronaut profile & data'}</h1><p>${escape(data.personal?.name || 'Crew member')} ${escape(data.personal?.astronautId || 'A-07')} <span class="separator">/</span> Day ${data?.day ?? profile().day} <span class="separator">/</span> ${escape(data?.phase ?? profile().phase)}</p></div>
-      <div class="mission-controls"><label class="small">Profile <select id="profile">${Object.entries(state).filter(([, data]) => Array.isArray(data?.records)).map(([key, data]) => '<option value="' + key + '" ' + (key === profileKey ? 'selected' : '') + '>' + escape(data.label || (key === 'demo' ? 'Simulated mission' : 'Manual entries')) + '</option>').join('')}</select></label><span class="connection"><i></i>${navigator.onLine ? 'Local workspace' : 'Offline'}</span><span class="small muted">${storageReady ? 'Stored on this device' : 'Storage unavailable'}</span></div>
+      <div><h1>${page === 'dashboard' ? 'Health dashboard' : page === 'log' ? 'Activity log' : 'Astronaut profile & data'}</h1><p>${escape(data.personal?.name || 'Crew member')} ${escape(data.personal?.astronautId || 'A-07')} <span class="separator">/</span> Day ${data?.day ?? profile().day} <span class="separator">/</span> ${escape(data?.phase ?? profile().phase)}</p></div>
+      <div class="mission-controls"><label class="small">Profile <select id="astronaut-profile">${Object.entries(state).filter(([, data]) => Array.isArray(data?.records)).map(([key, data]) => '<option value="' + key + '" ' + (key === profileKey ? 'selected' : '') + '>' + escape(data.label || (key === 'demo' ? 'Simulated mission' : 'Manual entries')) + '</option>').join('')}</select></label><span class="connection"><i></i>${navigator.onLine ? 'Local workspace' : 'Offline'}</span><span class="small muted">${storageReady ? 'Stored on this device' : 'Storage unavailable'}</span></div>
     </section>
-    <div class="workspace-note"><span>${escape(data.label || (profileKey === 'demo' ? 'Simulated mission data' : 'Manual entries'))} · ${data.records.length} recorded entries</span>${page === 'dashboard' ? '<button id="open-data">Manage astronaut & data</button>' : ''}</div>
-    ${page === 'dashboard' ? dashboard(data) : personalPage(data)}
+    <div class="workspace-note"><span>${escape(data.label || (profileKey === 'demo' ? 'Simulated mission data' : 'Manual entries'))} · ${data.records.length} recorded entries</span></div>
+    ${page === 'dashboard' ? dashboard(data) : page === 'log' ? logPage(data) : personalPage(data)}
   `;
   bindDashboard();
 }
@@ -113,9 +114,21 @@ function systemContext(id) {
   return '<h3>Hostile / closed environment</h3><p>Review symptoms alongside cabin conditions and nutrition context. Habitat and laboratory evidence require separate records.</p>';
 }
 
-function findingCard(finding) {
+function sourceDetails(record, rule = '') {
+  const saved = record.importedAt || record.recordedAt;
+  const origin = record.originalImport;
+  return '<details class="source-details"><summary>Source details</summary><p>' + escape(record.source) + ' · Day ' + record.day + ' · ' + escape(record.phase) + '</p>' +
+    (record.importFile ? '<p>' + escape(record.importFile) + ' · Row ' + record.importRow + '</p>' : '') +
+    (origin ? '<p>Original import · ' + escape(origin.file) + ' · Row ' + origin.row + '</p>' : '') +
+    '<p>Source ID ' + escape(record.id) + '</p><p>Saved / imported ' + (saved ? utc(saved) : 'time unavailable for legacy record') + '</p>' +
+    (rule ? '<p>' + escape(rule) + '</p>' : '') + '</details>';
+}
+
+function findingCard(finding, data) {
   const record = finding.record;
-  return `<article class="alert watch reading-finding"><span class="status-label">${finding.review ? 'Reviewed · Reading still outside demo reference' : '△ Reading review'}</span><h3>${escape(finding.label)}</h3><p class="finding-value">${escape(finding.value)} <small>${metrics[finding.key]?.unit || ''}</small></p><p class="small">Demo reference · ${escape(finding.reference)}</p><p class="small muted">${utc(record.time)} · Day ${record.day}<br>${escape(record.source)}${record.importFile ? ' · ' + escape(record.importFile) + ' · Row ' + record.importRow : ''}<br>${finding.rule} · Source ID ${escape(record.id)}<br>Saved / imported ${record.importedAt || record.recordedAt ? utc(record.importedAt || record.recordedAt) : 'time unavailable for legacy record'}</p><p class="owner">Crew medical officer · Review requested</p><button data-system="${finding.system}" class="subtle wide">Locate on body & inspect</button><button data-finding="${finding.id}" class="wide">Review evidence & record action</button></article>`;
+  const flag = finding.key === 'sleep' ? sleepFlag(data) : null;
+  const task = finding.key === 'sleep' ? data.followups.find(item => item.type === 'sleep' && item.day === data.day) : null;
+  return `<article class="alert watch reading-finding" data-locate="${finding.system}" tabindex="0" aria-label="${escape(finding.label)}; select to locate body system"><span class="status-label">${finding.review ? 'Reviewed · Reading still outside demo reference' : '△ Reading review'}</span><h3>${escape(finding.label)}</h3><p class="finding-value">${escape(finding.value)} <small>${metrics[finding.key]?.unit || ''}</small></p><p class="small">Demo reference · ${escape(finding.reference)}</p><p class="small muted">${utc(record.time)}</p>${flag ? '<p class="small">Two consecutive short nights · Day ' + flag.previous.day + ': ' + flag.previous.values.sleep + ' h · Day ' + flag.current.day + ': ' + flag.current.values.sleep + ' h</p>' : ''}${task ? '<p class="small">' + (task.outcome ? 'Follow-up completed' : 'Follow-up due day ' + task.due) + '</p>' : ''}${sourceDetails(record, finding.rule)}<p class="owner">${finding.review ? 'Crew review recorded' : 'Awaiting crew review'}</p><button data-finding="${finding.id}" class="wide">Review & record action</button></article>`;
 }
 
 function bodyMarkers(data) {
@@ -130,11 +143,12 @@ function bodyMarkers(data) {
 }
 
 function dashboard(data) {
+  const pendingCount = readingFindings(data).filter(item => !item.review).length;
   const system = systems.find(item => item.id === selected);
   return `
-    <section class="review-strip"><div><strong>${readingFindings(data).filter(item => !item.review).length} readings to review</strong><span>Latest available observations · Demo rules v1</span><details class="rule-reference"><summary>View alert thresholds</summary><p>Fictional demo references, inclusive boundaries. Outside these ranges prompts review.</p><ul>${Object.entries(demoRules).map(([key, rule]) => '<li>' + (metrics[key]?.label || 'Mood') + ' · ' + (key === 'mood' ? 'Low or Very low' : (key === 'sleep' ? (data.baseline?.low ?? rule.low) + '–' + (data.baseline?.high ?? rule.high) : rule.low + '–' + rule.high) + ' ' + metrics[key].unit) + '</li>').join('')}</ul></details></div><button id="quick-checkin" class="primary">＋ Record check-in</button></section>
+    <section class="review-strip"><div><strong>${pendingCount} reading${pendingCount === 1 ? '' : 's'} to review</strong><span>Latest available observations · Demo rules v1</span><details class="rule-reference"><summary>View alert thresholds</summary><p>Fictional demo references, inclusive boundaries. Outside these ranges prompts review.</p><ul>${Object.entries(demoRules).map(([key, rule]) => '<li>' + (metrics[key]?.label || 'Mood') + ' · ' + (key === 'mood' ? 'Low or Very low' : (key === 'sleep' ? (data.baseline?.low ?? rule.low) + '–' + (data.baseline?.high ?? rule.high) : rule.low + '–' + rule.high) + ' ' + metrics[key].unit) + '</li>').join('')}</ul></details></div><div class="input-actions"><button data-open-log>Log</button><button id="quick-checkin" class="primary">＋ Record check-in</button></div></section>
     <div class="dashboard">
-      <section class="panel attention"><div class="panel-heading"><h2>Attention queue</h2><span class="small muted">Action & evidence</span></div>${attention(data)}</section>
+      <section class="panel attention"><div class="panel-heading"><h2>Attention queue</h2></div>${attention(data)}</section>
       <section class="panel anatomy"><div class="panel-heading"><h2>Body systems</h2><button id="flip" class="subtle">${back ? 'Back' : 'Front'} ⇄</button></div>
         <div class="skeleton-stage">
           <details class="layer-settings"><summary>Visible layers & opacity</summary>
@@ -148,20 +162,26 @@ function dashboard(data) {
           <p class="small muted">Drag to rotate · Scroll or pinch to zoom</p>
         </div>
       </section>
-      <section class="panel evidence"><details class="system-menu"><summary><span>Review body system</span><strong>${system.label}</strong></summary><div class="system-list" aria-label="Body system selection">${systems.map(item => '<button data-system="' + item.id + '" aria-pressed="' + (item.id === selected) + '">' + item.label + '</button>').join('')}</div></details><div class="panel-heading"><h2>${system.label}</h2><span class="selected-dot" aria-hidden="true"></span></div>
-        <div class="evidence-body">${readingFindings(data).filter(item => item.system === selected).map(finding => '<div class="system-finding"><strong>' + escape(finding.value) + ' ' + (metrics[finding.key]?.unit || '') + ' · Review</strong><p>' + escape(finding.label) + '</p><button data-finding="' + finding.id + '">Evidence & action</button></div>').join('')}${openRegionEvents(data, system.id).map(event => `<div class="region-event"><strong>${event.urgent ? 'Urgent' : 'Review'} · ${escape(event.text)}</strong><p>${utc(event.time)} · Crew report</p><button data-event="${escape(event.id)}">Open event & record action</button></div>`).join('')}${system.keys.length ? system.keys.map(key => { const record = latest(data.records, key); return '<div class="reading"><span>' + (metrics[key]?.label || 'Mood') + '</span><strong>' + valueOf(data, key) + '</strong></div>' + (record ? '<p class="small muted provenance">' + utc(record.time) + ' · Day ' + record.day + '<br>' + escape(record.source) + ' · ' + escape(record.phase) + (record.importFile ? '<br>File ' + escape(record.importFile) + (record.importRow ? ' · Row ' + record.importRow : '') + (record.importedAt ? '<br>Imported ' + utc(record.importedAt) : '') : '') + '</p>' : ''); }).join('') : '<div class="unavailable">○ No exam on file</div>'}
-        <p class="evidence-explanation">${system.evidence}</p>
+      <section class="panel evidence"><details class="system-menu"><summary><span>Review body system</span><strong role="heading" aria-level="2">${system.label}</strong></summary><div class="system-list" aria-label="Body system selection">${systems.map(item => '<button data-system="' + item.id + '" aria-pressed="' + (item.id === selected) + '">' + item.label + '</button>').join('')}</div></details>
+        <div class="evidence-body">${openRegionEvents(data, system.id).map(event => `<div class="region-event"><strong>${event.urgent ? 'Urgent' : 'Review'} · ${escape(event.text)}</strong><p>${utc(event.time)} · Crew report</p><button data-event="${escape(event.id)}">Open event & record action</button></div>`).join('')}${system.keys.length ? system.keys.map(key => {
+          const record = latest(data.records, key);
+          const finding = readingFindings(data).find(item => item.key === key);
+          return '<div class="reading"><span>' + (metrics[key]?.label || 'Mood') + '</span><strong>' + valueOf(data, key) + '</strong></div>' +
+            (finding ? '<button class="reading-badge" data-finding="' + finding.id + '">' + (finding.review ? 'Reviewed' : 'Review reading') + '</button>' : '') +
+            (record ? '<p class="small muted">' + utc(record.time) + '</p>' : '') + trendChart(data, key) + (record ? sourceDetails(record) : '');
+        }).join('') : '<div class="unavailable">○ No exam on file</div>'}
+        ${missionEvidence(data, selected)}<p class="evidence-explanation">${system.evidence}</p>
         <details><summary>Associated research risks</summary><ul>${system.risks.map(risk => '<li>' + risk + '</li>').join('')}</ul><a href="${sources[1][1]}" target="_blank" rel="noreferrer">NASA risk reference ↗</a></details>
         <button id="history" class="wide">View observations & trends</button>
         <button id="report" class="subtle wide">＋ Record symptom or event</button>
         </div>
-        <div class="exposure">${systemContext(system.id)}<button data-system="exposure" class="subtle">Radiation evidence</button><button data-system="operations" class="subtle">Habitat & onboard support</button></div>
+        <div class="exposure">${systemContext(system.id)}</div>
       </section>
     </div>
-    <section class="panel latest"><div class="panel-heading"><h2>Latest check-in</h2><button id="open-data-latest">Open data input</button></div>
+    <section class="panel latest"><div class="panel-heading"><h2>Latest readings</h2><button id="open-data-latest">Open data input</button></div>
       <div class="metric-strip">${['pulse', 'systolic', 'temperature', 'sleep', 'mood', 'glucose'].map(key => '<button class="metric ' + (readingFindings(data).some(finding => finding.key === key || key === 'systolic' && finding.key === 'diastolic') ? 'metric-watch' : '') + '" data-metric="' + key + '"><span>' + (key === 'systolic' ? 'Blood pressure' : metrics[key]?.label || 'Mood') + '</span><strong>' + (key === 'systolic' && latest(data.records, key) ? escape(latest(data.records, key).values.systolic) + '/' + escape(latest(data.records, key).values.diastolic ?? '—') + ' <small>mmHg</small>' : valueOf(data, key)) + '</strong></button>').join('')}</div>
     </section>
-    <section class="panel timeline dashboard-history"><div class="panel-heading"><h2>Observation history</h2><span class="small muted">UTC</span></div>${timeline(data)}</section>`;
+`;
 
 }
 function personalPage(data) {
@@ -175,22 +195,24 @@ function personalPage(data) {
     ['heightCm', 'Height (cm)', 'number', null],
     ['weightKg', 'Body mass (kg)', 'number', null]
   ];
+  const inputs = items => items.map(([key, label, type, length]) => '<label>' + label + '<input name="' + key + '" type="' + type + '" value="' + escape(personal[key] ?? '') + '"' + (length ? ' maxlength="' + length + '"' : '') + (type === 'number' ? ' min="0.1" max="1000" step="0.1"' : '') + (type === 'date' ? ' max="' + new Date().toISOString().slice(0, 10) + '"' : '') + '></label>').join('');
   return `<div class="profile-grid">
     <section class="panel"><div class="panel-heading"><h2>Personal information</h2></div>
-      <form id="personal-form" class="profile-form"><p class="small muted">Saved with the selected profile on this device. Fill in the details available to you.</p>
-        <div class="form-grid">${fields.map(([key, label, type, length]) => '<label>' + label + '<input name="' + key + '" type="' + type + '" value="' + escape(personal[key] ?? '') + '"' + (length ? ' maxlength="' + length + '"' : '') + (type === 'number' ? ' min="0.1" max="1000" step="0.1"' : '') + (type === 'date' ? ' max="' + new Date().toISOString().slice(0, 10) + '"' : '') + '></label>').join('')}</div>
+      <form id="personal-form" class="profile-form"><p class="small muted">Details save on this device.</p>
+        <div class="form-grid">${inputs(fields.slice(0, 4))}</div>
+        <details class="medical-details"><summary>Optional medical details</summary><div class="form-grid">${inputs(fields.slice(4))}</div>
         <label>Blood group<select name="bloodGroup"><option value="">Not recorded</option>${['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(group => '<option ' + (group === personal.bloodGroup ? 'selected' : '') + '>' + group + '</option>').join('')}</select></label>
-        <p class="form-error" role="alert"></p><button type="submit" class="primary">Save personal information</button>
+        </details><p class="form-error" role="alert"></p><button type="submit" class="primary">Save personal information</button>
       </form>
     </section>
     <section class="panel data-input"><div class="panel-heading"><h2>CSV & crew observations</h2></div>
-      <div class="evidence-body"><p>Import a health CSV to review recorded observations. Add symptoms and crew actions as they occur. Collection times describe the record’s coverage.</p>
-        <button id="import-csv" class="primary wide">Import health CSV</button><button id="checkin" class="wide">＋ Record check-in</button><button id="report" class="subtle wide">＋ Record symptom or event</button>
+      <div class="evidence-body"><p>Import readings or record a check-in.</p>
+        <button id="import-csv" class="primary wide">Import CSV</button><button id="checkin" class="wide">＋ Record check-in</button><button id="report" class="subtle wide">＋ Record symptom or event</button>
         <div class="profile-mission"><h3>Mission context</h3><p>Day ${data.day} · ${escape(data.phase)}</p><p class="small muted">${escape(personal.missionName || 'Mission name not recorded')}</p><button id="mission" class="wide">Edit mission day & phase</button></div>
-        <div class="profile-mission"><h3>CSV test files</h3><p class="small muted">Seven synthetic days per scenario. Test files open in separate profiles.</p><p><a href="data/testing/healthy-data.csv" download>Healthy data</a> · <a href="data/testing/unhealthy-data.csv" download>Unhealthy data</a></p></div>
+        <details class="profile-mission"><summary>Test datasets</summary><p class="small muted">Seven synthetic days per scenario. Test files open in separate profiles.</p><p><a href="data/testing/healthy-data.csv" download>Healthy data</a> · <a href="data/testing/unhealthy-data.csv" download>Unhealthy data</a> · <a href="data/testing/five-hazards-synthetic.csv" download>Five-hazard mission</a></p></details>
       </div>
     </section>
-  </div><section class="panel dashboard-history"><div class="panel-heading"><h2>Data entries & corrections</h2><span class="small muted">Original records retained</span></div>${timeline(data)}</section>`;
+  </div>`;
 }
 async function savePersonal(event) {
   event.preventDefault();
@@ -210,24 +232,50 @@ async function savePersonal(event) {
 }
 function attention(data) {
   const events = data.events.filter(event => !event.outcome);
-  const flag = sleepFlag(data);
-  const sleepTask = data.followups.find(task => task.type === 'sleep' && task.day === data.day);
-  return '<div class="attention-content">' + readingFindings(data).map(findingCard).join('') + events.map(event => `<article class="alert ${event.urgent ? 'urgent' : 'watch'}"><span class="status-label">${event.urgent ? '⬣ Act now' : '△ Review'}</span><h3>${escape(event.text)}</h3><p class="small">Crew report · ${utc(event.time)}</p><span class="evidence-tag">Self-reported · Sensor evidence unavailable</span><p class="owner">${escape(event.owner)} · ${event.urgent ? 'Now' : 'Review requested'}</p>${event.acknowledged ? '<p class="small muted">Acknowledged ' + utc(event.acknowledged) + '</p>' : ''}${'<button data-event="' + event.id + '" class="wide">Open event & onboard guidance</button>'}</article>`).join('') +
-    (flag && !sleepTask?.outcome ? `<article class="alert watch"><span class="status-label">△ Review</span><h3>Two nights below sleep reference</h3><div class="sleep-comparison"><div>Day ${flag.previous.day}<strong>${flag.previous.values.sleep} <small>h</small></strong></div><div>Day ${flag.current.day}<strong>${flag.current.values.sleep} <small>h</small></strong></div></div><p>Personal preflight reference <strong>${data.baseline.low}–${data.baseline.high} h</strong></p><p class="small muted">Fictional demo rule · Self-reported sleep</p><p class="owner">Astronaut · Due day ${data.day + 1}</p><button id="sleep-followup" class="wide">${sleepTask ? 'Open scheduled follow-up' : 'Review schedule & follow up'}</button></article>` : '') +
-    (!events.length && !flag && !readingFindings(data).length ? '<div class="quiet"><h3>No open action flags</h3><p>Review available observations and scheduled follow-ups. Unmeasured systems remain unassessed.</p></div>' : '') +
+  return '<div class="attention-content">' + readingFindings(data).map(finding => findingCard(finding, data)).join('') + events.map(event => `<article class="alert ${event.urgent ? 'urgent' : 'watch'}"><span class="status-label">${event.urgent ? '⬣ Act now' : '△ Review'}</span><h3>${escape(event.text)}</h3><p class="small">Crew report · ${utc(event.time)}</p><span class="evidence-tag">Self-reported · Sensor evidence unavailable</span><p class="owner">${escape(event.owner)} · ${event.urgent ? 'Now' : 'Review requested'}</p>${event.acknowledged ? '<p class="small muted">Acknowledged ' + utc(event.acknowledged) + '</p>' : ''}${'<button data-event="' + event.id + '" class="wide">Open event & onboard guidance</button>'}</article>`).join('') +
+    (!events.length && !readingFindings(data).length && !data.followups.some(task => !task.outcome) ? '<div class="quiet"><h3>No open action flags</h3><p>Review available observations and scheduled follow-ups. Unmeasured systems remain unassessed.</p></div>' : '') +
     data.followups.map(task => '<div class="task"><strong>' + escape(task.title) + '</strong><p class="small">Due day ' + task.due + ' · ' + (task.outcome ? 'Closed · ' + escape(task.outcome) : 'Open') + '</p>' + (!task.outcome ? '<button data-task="' + task.id + '">Record outcome</button>' : '') + '</div>').join('') + '</div>';
+}
+function importedMissionRows(data) {
+  return (state._missions?.[data.missionId]?.records || []).filter(row =>
+    !row.astronaut_id || row.astronaut_id === data.astronautId);
+}
+function missionEvidence(data, systemId) {
+  const rows = importedMissionRows(data).filter(row => !systemId || row.body_system === systemId ||
+    (systemId === 'operations' && !row.body_system && !row.astronaut_id));
+  if (!rows.length) return '';
+  return '<details class="mission-evidence"><summary>Imported mission records (' + rows.length + ')</summary>' +
+    rows.map(row => '<details class="source-details"><summary>' + escape(row.record_type.replaceAll('_', ' ') + ' · ' + row.record_id) + '</summary><dl>' +
+      hazardColumns.filter(key => row[key] !== '').map(key => '<dt>' + escape(key.replaceAll('_', ' ')) + '</dt><dd>' + escape(row[key]) + '</dd>').join('') +
+      '<dt>File / row</dt><dd>' + escape(row.importFile) + ' · ' + row.importRow + '</dd><dt>Imported on device</dt><dd>' + utc(row.importedAt) + '</dd></dl></details>').join('') + '</details>';
+}
+function logPage(data) {
+  return '<section class="panel timeline"><div class="panel-heading"><h2>Observations, events & actions</h2><span class="small muted">UTC · Original records retained</span></div>' + timeline(data) + missionEvidence(data) + '</section>';
 }
 function timeline(data) {
   const rows = [...data.records.map(record => ({ ...record, title: record.replaces ? 'Corrected observation' : 'Check-in recorded', detail: Object.entries(record.values).map(([key, value]) => (metrics[key]?.label || key) + ' ' + value + ' ' + (metrics[key]?.unit || '')).join(' · ') })), ...data.events.map(event => ({ ...event, title: event.text, detail: event.outcome || 'Crew report · Review outcome pending' })), ...(data.reviews || []).flatMap(review => (review.actions || []).map(action => ({ time: action.time, title: 'Reading review · ' + (review.label || review.findingId), detail: action.note, related: review.sourceId || review.findingId })))].sort((a, b) => b.time.localeCompare(a.time));
-  return rows.length ? '<ol class="timeline-list">' + rows.map(row => '<li><time>' + utc(row.time) + '</time><div><strong>' + escape(row.title) + '</strong><p>' + escape(row.detail) + '</p>' + (row.context ? '<p class="small muted">' + escape(row.context) + '</p>' : '') + (row.related ? '<p class="small muted">Linked record ' + escape(row.related) + '</p>' : '') + (row.replaces ? '<p class="small muted">Replaces ' + escape(row.replaces) + ' · ' + escape(row.reason) + '</p>' : '') + (page === 'profile' && row.values && !data.records.some(record => record.replaces === row.id) ? '<button class="subtle" data-correct="' + row.id + '">Correct this entry</button>' : '') + '</div></li>').join('') + '</ol>' : '<p class="empty-copy">No observations recorded. Start with a check-in or symptom report.</p>';
+  return rows.length ? '<ol class="timeline-list">' + rows.map(row => '<li><time>' + utc(row.time) + '</time><div><strong>' + escape(row.title) + '</strong><p>' + escape(row.detail) + '</p>' + (row.context ? '<p class="small muted">' + escape(row.context) + '</p>' : '') + (row.related ? '<p class="small muted">Linked record ' + escape(row.related) + '</p>' : '') + (row.replaces ? '<p class="small muted">Replaces ' + escape(row.replaces) + ' · ' + escape(row.reason) + '</p>' : '') + (page === 'log' && row.values && !data.records.some(record => record.replaces === row.id) ? '<button class="subtle" data-correct="' + row.id + '">Correct this entry</button>' : '') + '</div></li>').join('') + '</ol>' : '<p class="empty-copy">No observations recorded. Start with a check-in or symptom report.</p>';
 }
 function bindDashboard() {
-  $('#profile').onchange = event => { profileKey = event.target.value; localStorage.setItem('crew-health-profile', profileKey); selected = 'heart'; render(); };
+  document.querySelectorAll('[data-open-log]').forEach(button => button.onclick = () => { location.hash = 'log'; });
+  $('#astronaut-profile').onchange = event => { profileKey = event.target.value; localStorage.setItem('crew-health-profile', profileKey); selected = 'heart'; render(); };
   if ($('#mission')) $('#mission').onclick = missionSettings;
-  if ($('#open-data')) $('#open-data').onclick = () => { location.hash = 'profile'; };
   if ($('#open-data-latest')) $('#open-data-latest').onclick = () => { location.hash = 'profile'; };
   if ($('#personal-form')) $('#personal-form').onsubmit = savePersonal;
   document.querySelectorAll('[data-system]').forEach(button => button.onclick = () => { selected = button.dataset.system; render(); });
+  document.querySelectorAll('[data-locate]').forEach(card => {
+    const locate = () => {
+      selected = card.dataset.locate;
+      render();
+    };
+    card.onclick = event => { if (!event.target.closest('button, a, details')) locate(); };
+    card.onkeydown = event => {
+      if (event.target === card && ['Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+        locate();
+      }
+    };
+  });
   document.querySelectorAll('[data-metric]').forEach(button => button.onclick = () => history(button.dataset.metric));
   document.querySelectorAll('[data-correct]').forEach(button => button.onclick = () => checkin(button.dataset.correct));
   document.querySelectorAll('[data-event]').forEach(button => button.onclick = () => eventDialog(button.dataset.event));
@@ -285,24 +333,35 @@ function bindDashboard() {
   if ($('#import-csv')) $('#import-csv').onclick = importCsv;
   if ($('#history')) $('#history').onclick = () => history(systems.find(item => item.id === selected).keys[0] || 'pulse');
   if ($('#report')) $('#report').onclick = () => report();
-  if ($('#sleep-followup')) $('#sleep-followup').onclick = sleepFollowup;
 }
 function importCsv() {
   let records = [];
   let filename = '';
   let generation = 0;
-  modal('Import check-ins from CSV', `<form>
+  modal('Import health or mission CSV', `<form>
     <p>Upload comma-separated UTF-8 data, up to 1 MB and 1000 rows. Every row is validated before a single save.</p>
-    <p><a href="data/testing/healthy-data.csv" download>Download healthy test data</a> · <a href="data/testing/unhealthy-data.csv" download>Download unhealthy test data</a></p>
     <label>CSV file<input id="csv-file" type="file" accept=".csv,text/csv" required></label>
-    <label>Destination<select id="csv-destination" name="destination"><option value="current">Append to current profile</option><option value="test">Separate synthetic test profile</option></select></label>
+    <label>Destination<select id="csv-destination" name="destination"><option value="current">Append to current profile</option><option value="test">Separate synthetic test profile</option><option value="mission" disabled>Mission & crew profiles</option></select></label>
     <p class="small muted">A separate test profile uses the fictional 7–8 h sleep reference. Existing profiles retain their records, open events and reference settings.</p>
-    <details><summary>CSV column format</summary><p class="small">Required headers: mission_day, timestamp_utc, phase, data_kind. Optional measurements: heart_rate_bpm, systolic_mmhg, diastolic_mmhg, temperature_c, sleep_hours, mood, glucose_mgdl, context.</p><p class="small">Use UTC timestamps such as 2026-11-14T08:10:00Z. data_kind is synthetic or observed. Leave unavailable readings blank. Both blood pressure values are required when either is recorded.</p></details>
+    <details><summary>CSV column format</summary><p>Combined mission format uses record_type and record_id with mission-scoped links. Use the five-hazards sample for all 44 columns. Each file imports into separate crew profiles with shared mission evidence.</p><p class="small">Health format required headers: mission_day, timestamp_utc, phase, data_kind. Optional measurements: heart_rate_bpm, systolic_mmhg, diastolic_mmhg, temperature_c, sleep_hours, mood, glucose_mgdl, context.</p><p class="small">Use UTC timestamps such as 2026-11-14T08:10:00Z. data_kind is synthetic or observed. Leave unavailable readings blank. Both blood pressure values are required when either is recorded.</p></details>
     <div id="csv-preview" aria-live="polite"><p>Select a file to preview its data.</p></div>
     ${formEnd('Import validated rows')}`, async fields => {
     const imported = records;
     const importedName = filename;
     if (!imported.length) throw Error('Select and validate a CSV file first.');
+    if (imported[0].format === 'hazards') {
+      if (busy) throw Error('A save is in progress. Please try again.');
+      busy = true;
+      try {
+        const next = structuredClone(state);
+        const result = appendHazardCsv(next, imported, importedName);
+        await commit(next);
+        profileKey = result.target;
+        localStorage.setItem('crew-health-profile', profileKey);
+        toast(result.added + ' mission records imported. Select an imported crew profile to review its evidence.');
+      } finally { busy = false; }
+      return;
+    }
     const separate = fields.get('destination') === 'test';
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(imported.map(record => record.id).sort().join(',')));
     const testKey = 'csv-' + [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
@@ -318,7 +377,7 @@ function importCsv() {
       profileKey = target;
       localStorage.setItem('crew-health-profile', target);
     } finally { busy = false; }
-    toast(added + ' check-ins imported. ' + (imported.length - added) + ' exact duplicates skipped. The dashboard now reflects the imported data.');
+    toast(added + ' records imported. ' + (imported.length - added) + ' exact duplicates skipped. The dashboard now reflects the imported data.');
   });
   const submit = $('#dialog-body [type=submit]');
   submit.disabled = true;
@@ -339,6 +398,16 @@ function importCsv() {
       const synthetic = records.every(record => record.source === 'CSV · Synthetic');
       $('#csv-destination option[value=test]').disabled = !synthetic;
       $('#csv-destination').value = synthetic ? 'test' : 'current';
+      const combined = records[0].format === 'hazards';
+      $('#csv-destination').disabled = combined;
+      if (combined) {
+        $('#csv-destination').value = 'mission';
+        $('#csv-preview').innerHTML = '<p><strong>' + records.length + ' valid mission rows</strong> · Imports into mission-scoped crew profiles. Linked IDs and existing-record conflicts are checked before saving.</p><div class="table-scroll"><table><caption>All combined mission fields</caption><thead><tr>' + hazardColumns.map(key => '<th>' + escape(key) + '</th>').join('') + '</tr></thead><tbody>' + records.map(row => '<tr>' + hazardColumns.map(key => '<td>' + escape(row[key]) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+        const preview = structuredClone(state);
+        appendHazardCsv(preview, records, filename);
+        submit.disabled = false;
+        return;
+      }
       const columns = ['Day', 'UTC', 'Phase', 'Source', ...Object.values(metrics).map(field => field.label + ' (' + field.unit + ')'), 'Mood', 'Context'];
       $('#csv-preview').innerHTML = '<p><strong>' + records.length + ' valid rows</strong> · Mission days ' + Math.min(...records.map(record => record.day)) + '–' + Math.max(...records.map(record => record.day)) + '</p><div class="table-scroll"><table><caption>All uploaded observations</caption><thead><tr>' + columns.map(label => '<th>' + label + '</th>').join('') + '</tr></thead><tbody>' + records.map(record => '<tr>' + [record.day, utc(record.time), record.phase, record.source, ...Object.keys(metrics).map(key => record.values[key] ?? '—'), record.values.mood ?? '—', record.context].map(value => '<td>' + escape(value) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
       submit.disabled = false;
@@ -352,10 +421,10 @@ function importCsv() {
 function checkin(correctionId) {
   const old = profile().records.find(record => record.id === correctionId);
   const id = crypto.randomUUID();
-  modal(old ? 'Correct an observation' : 'Record a check-in', `<form><p class="muted">Leave unmeasured fields blank. Times are UTC. Technical input bounds validate entry format and do not define safe values.</p><div class="form-grid"><label>Mission day<input name="day" type="number" min="1" max="10000" required value="${old?.day || profile().day}"></label><label>Collection time (UTC)<input name="time" type="datetime-local" required value="${old?.time.slice(0, 16) || nowInput()}"></label></div>
+  modal(old ? 'Correct an observation' : 'Record a check-in', `<form><p class="muted">Leave unmeasured fields blank. Times are UTC.</p><details><summary>Measurement help</summary><p>Technical input bounds validate entry format and do not define safe values.</p></details><div class="form-grid"><label>Mission day<input name="day" type="number" min="1" max="10000" required value="${old?.day || profile().day}"></label><label>Collection time (UTC)<input name="time" type="datetime-local" required value="${old?.time.slice(0, 16) || nowInput()}"></label></div>
     ${Object.entries(metrics).map(([key, field]) => '<label>' + field.label + ' <span class="muted">(' + field.unit + ')</span><input name="' + key + '" type="number" min="' + field.min + '" max="' + field.max + '" step="' + field.step + '" value="' + (old?.values[key] ?? '') + '"><small>' + field.help + '</small></label>').join('')}
     <label>Mood<select name="mood"><option value="">Skip</option>${['Very low', 'Low', 'Neutral', 'Good', 'Very good'].map(mood => '<option ' + (old?.values.mood === mood ? 'selected' : '') + '>' + mood + '</option>').join('')}</select></label>
-    <label>Related event or repeat request<select name="related"><option value="">No linked event</option>${[...profile().events.map(event => ({ id: event.id, title: event.text })), ...profile().reviews.filter(review => /request/i.test(review.type)).map(review => ({ id: review.id, title: review.type + ' · ' + review.reference }))].map(item => '<option value="' + item.id + '" ' + (old?.related === item.id ? 'selected' : '') + '>' + escape(item.title) + '</option>').join('')}</select></label><label>Measurement context<textarea name="context" maxlength="1000" placeholder="Posture, activity, thermometer method, meal timing or shift change">${escape(old?.context)}</textarea></label>
+    <label>Related event<select name="related"><option value="">No linked event</option>${[...profile().events.map(event => ({ id: event.id, title: event.text })), ].map(item => '<option value="' + item.id + '" ' + (old?.related === item.id ? 'selected' : '') + '>' + escape(item.title) + '</option>').join('')}</select></label><label>Measurement context<textarea name="context" maxlength="1000" placeholder="Posture, activity, thermometer method, meal timing or shift change">${escape(old?.context)}</textarea></label>
     <label>Private onboard note<textarea name="note" maxlength="2000">${escape(old?.note)}</textarea><small>Saved only on this device.</small></label>
     ${old ? '<label>Reason for correction<input name="reason" required maxlength="300"></label>' : ''}${formEnd()}`, async fields => {
       const values = {};
@@ -371,7 +440,7 @@ function checkin(correctionId) {
     });
 }
 function missionSettings() {
-  modal('Mission settings', '<form><label>Mission day<input name="day" type="number" min="1" max="10000" value="' + profile().day + '" required></label><label>Phase<select name="phase">' + ['Preflight', 'Transit', 'Surface', 'Re-entry', 'Recovery'].map(phase => '<option ' + (profile().phase === phase ? 'selected' : '') + '>' + phase + '</option>').join('') + '</select></label><p>Sleep comparison uses the demo’s fictional 7–8 h reference. Manual entries have no reference until a verified baseline workflow is integrated.</p>' + formEnd(), async fields => {
+  modal('Mission settings', '<form><label>Mission day<input name="day" type="number" min="1" max="10000" value="' + profile().day + '" required></label><label>Phase<select name="phase">' + ['Preflight', 'Transit', 'Surface', 'Re-entry', 'Recovery'].map(phase => '<option ' + (profile().phase === phase ? 'selected' : '') + '>' + phase + '</option>').join('') + '</select></label><p>Readings use the demo references displayed under View alert thresholds.</p>' + formEnd(), async fields => {
     const day = Number(fields.get('day'));
     if (!Number.isInteger(day) || day < 1 || day > 10000) throw Error('Enter a valid mission day.');
     await changeProfile(data => { data.day = day; data.phase = fields.get('phase'); });
@@ -389,10 +458,14 @@ function report() {
 function findingDialog(id) {
   const finding = readingFindings(profile()).find(item => item.id === id);
   if (!finding) return;
-  modal('Reading evidence & action', '<h3>' + escape(finding.label) + '</h3><p>' + escape(finding.value) + ' ' + (metrics[finding.key]?.unit || '') + ' · Demo reference ' + escape(finding.reference) + '</p><p>' + utc(finding.record.time) + ' · ' + escape(finding.record.source) + '</p><p class="small muted">Evaluated when this view opened. ' + finding.rule + '. Measurement context: ' + escape(finding.record.context || 'Not recorded') + '</p><div class="guidance"><h3>Demo review checklist v1</h3><ol><li>Check the entered value, units, device and collection context.</li><li>Use the approved onboard measurement procedure to confirm a suspect reading.</li><li>Record symptoms and contact the crew medical officer for assessment.</li></ol><p>These fictional demo thresholds require mission validation.</p></div>' + (finding.review?.actions || []).map(action => '<p>' + utc(action.time) + ' · ' + escape(action.note) + '</p>').join('') + '<form><label>Action taken or next step<textarea name="note" required maxlength="1000"></textarea></label>' + formEnd('Record review'), async fields => {
+  modal('Reading evidence & action', '<h3>' + escape(finding.label) + '</h3><p>' + escape(finding.value) + ' ' + (metrics[finding.key]?.unit || '') + ' · Demo reference ' + escape(finding.reference) + '</p><p>' + utc(finding.record.time) + ' · ' + escape(finding.record.source) + '</p><p class="small muted">Evaluated when this view opened. ' + finding.rule + '. Measurement context: ' + escape(finding.record.context || 'Not recorded') + '</p><div class="guidance"><h3>Demo review checklist v1</h3><ol><li>Check the entered value, units, device and collection context.</li><li>Use the approved onboard measurement procedure to confirm a suspect reading.</li><li>Record symptoms and contact the crew medical officer for assessment.</li></ol><p>These fictional demo thresholds require mission validation.</p></div>' + (finding.review?.actions || []).map(action => '<p>' + utc(action.time) + ' · ' + escape(action.note) + '</p>').join('') + (finding.key === 'sleep' ? '<button id="schedule-sleep" class="wide">Schedule sleep follow-up</button>' : '') + '<form><label>Action taken or next step<textarea name="note" required maxlength="1000"></textarea></label>' + formEnd('Record review'), async fields => {
     await changeProfile(data => reviewFinding(data, id, fields.get('note'), new Date().toISOString()));
     toast('Review saved. The source reading remains visible until new evidence changes the finding.');
   });
+  if ($('#schedule-sleep')) $('#schedule-sleep').onclick = () => {
+    $('#dialog').close();
+    sleepFollowup();
+  };
 }
 function eventDialog(id) {
   const event = profile().events.find(item => item.id === id);
@@ -427,13 +500,30 @@ function history(initial) {
   $('#trend-key').onchange = () => drawTrend($('#trend-key').value);
   drawTrend(initial);
 }
+function trendChart(data, key) {
+  const daily = sevenDayReadings(data, key);
+  const label = metrics[key]?.label || 'Mood';
+  const unit = metrics[key]?.unit || 'Self-report';
+  if (!daily.some(item => item.record)) return '<p class="trend-empty small muted">No ' + escape(label.toLowerCase()) + ' readings in the last seven mission days.</p>';
+  if (key === 'mood') {
+    return '<figure class="inline-trend"><figcaption>7-day mood history · Daily latest</figcaption><ol class="mood-history">' + daily.map(({ day, record }) =>
+      '<li><span>Day ' + day + '</span><strong>' + escape(record?.values.mood ?? 'No reading') + '</strong></li>').join('') + '</ol></figure>';
+  }
+  const max = Math.max(1, ...daily.map(item => item.record?.values[key] ?? 0));
+  return '<figure class="inline-trend"><figcaption>7-day trend · ' + unit + ' · Daily latest</figcaption><div class="mini-chart" role="img" aria-label="' +
+    escape(label + ', ' + unit + '. Bars start at zero. ' + daily.map(({ day, record }) => 'Day ' + day + ': ' + (record ? record.values[key] : 'no reading')).join('. ')) + '">' +
+    daily.map(({ day, record }) => {
+      const value = record?.values[key];
+      return '<div class="mini-day"><span>' + (value ?? '—') + '</span><div class="mini-track">' +
+        (value !== undefined ? '<div class="mini-bar" style="height:' + value / max * 100 + '%"></div>' : '<span class="mini-gap">—</span>') +
+        '</div><small>D' + day + '</small></div>';
+    }).join('') + '</div><p class="trend-note">Zero-based scale · — No reading</p></figure>';
+}
+
 function drawTrend(key) {
   const data = profile();
   const records = currentRecords(data.records).filter(record => record.values[key] !== undefined);
-  const days = Array.from({ length: 7 }, (_, index) => data.day - 6 + index).filter(day => day > 0);
-  const daily = days.map(day => records.filter(record => record.day === day).at(-1));
-  const max = Math.max(...daily.map(record => typeof record?.values[key] === 'number' ? record.values[key] : 0), key === 'sleep' ? data.baseline?.high || 8 : 1);
-  $('#trend').innerHTML = '<p class="small muted">Daily latest values · Gaps stay unmeasured · ' + (key === 'sleep' && data.baseline ? escape(data.baseline.source) + ' ' + data.baseline.low + '–' + data.baseline.high + ' h · Sample count unavailable' : 'Personal reference unavailable') + '</p><div class="chart">' + days.map((day, index) => '<div class="chart-day"><span>' + (daily[index] ? escape(daily[index].values[key]) : '—') + '</span><div class="bar-space">' + (typeof daily[index]?.values[key] === 'number' ? '<div class="bar" style="height:' + Math.max(2, daily[index].values[key] / max * 100) + '%"></div>' : '') + '</div><small>D' + day + '</small></div>').join('') + '</div><div class="table-scroll"><table><caption>Source observations · ' + (metrics[key]?.unit || 'Self-report') + '</caption><thead><tr><th>Day / UTC</th><th>Value</th><th>Source & context</th></tr></thead><tbody>' + records.map(record => '<tr><td>D' + record.day + '<br>' + utc(record.time) + '</td><td>' + escape(record.values[key]) + ' ' + (metrics[key]?.unit || '') + '</td><td>' + escape(record.source) + '<br>' + escape(record.phase) + '<br>' + escape(record.context || 'Context not released') + '</td></tr>').join('') + '</tbody></table></div>' + (!records.length ? '<p>No observations for this indicator.</p>' : '');
+  $('#trend').innerHTML = '<p class="small muted">Daily latest values · Gaps stay unmeasured · ' + (key === 'sleep' && data.baseline ? escape(data.baseline.source) + ' ' + data.baseline.low + '–' + data.baseline.high + ' h · Sample count unavailable' : 'Personal reference unavailable') + '</p>' + trendChart(data, key) + '<div class="table-scroll"><table><caption>Source observations · ' + (metrics[key]?.unit || 'Self-report') + '</caption><thead><tr><th>Day / UTC</th><th>Value</th><th>Source & context</th></tr></thead><tbody>' + records.map(record => '<tr><td>D' + record.day + '<br>' + utc(record.time) + '</td><td>' + escape(record.values[key]) + ' ' + (metrics[key]?.unit || '') + '</td><td>' + escape(record.source) + '<br>' + escape(record.phase) + '<br>' + escape(record.context || 'Context not released') + '</td></tr>').join('') + '</tbody></table></div>' + (!records.length ? '<p>No observations for this indicator.</p>' : '');
 }
 $('#close-dialog').onclick = () => $('#dialog').close();
 $('#help').onclick = () => modal('Crew medical help', '<div class="guidance"><h3>Contact the crew medical officer now for an urgent concern</h3><p>Use the mission’s approved communication and emergency procedure. This prototype has no loaded medical protocols and cannot call or transmit a distress message.</p></div><button id="urgent-report" class="danger-button wide">Record an urgent crew report</button>');
@@ -441,9 +531,11 @@ $('#dialog-body').addEventListener('click', event => { if (event.target.id === '
 $('#sources').onclick = () => modal('Research & scope', '<p>Based on the supplied challenge brief and agency resources. All 17 NASA risk categories have a destination in the system list. Specialized exams display their availability; this prototype does not infer a disease from routine vitals.</p><ul class="source-list">' + sources.map(([label, url]) => '<li><a target="_blank" rel="noreferrer" href="' + url + '">' + label + ' ↗</a></li>').join('') + '</ul><p class="small muted"><a href="assets/anatomy-ATTRIBUTION.md" target="_blank">BodyParts3D © DBCLS · Adapted by Open Anatomy 3D</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a><br>Layer colors and visibility modified · Male reference anatomy</p><p>The sleep comparison uses an explicitly fictional preflight reference. Real crew records require appropriate access controls and mission-approved protocols.</p>');
 document.querySelectorAll('[data-page]').forEach(button => button.onclick = () => { location.hash = button.dataset.page; });
 window.addEventListener('hashchange', () => {
-  if (!['', '#dashboard', '#profile'].includes(location.hash)) return;
-  page = location.hash === '#profile' ? 'profile' : 'dashboard';
+  if (!['', '#dashboard', '#profile', '#log'].includes(location.hash)) return;
+  page = ['#profile', '#log'].includes(location.hash) ? location.hash.slice(1) : 'dashboard';
   render();
+  $('#main').focus({ preventScroll: true });
+  requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
 });
 function updateConnection() {
   const indicator = $('.connection');

@@ -1,3 +1,4 @@
+import { parseHazardRows } from './hazard-csv.js';
 import { validateRecord, freshProfile } from './model.js';
 
 export const csvColumns = {
@@ -57,6 +58,7 @@ export async function parseCsv(text) {
   const [headers, ...rows] = readRows(text.replace(/^\uFEFF/, ''));
   if (!headers || !rows.length) throw Error('Include a header and at least one data row.');
   if (new Set(headers).size !== headers.length) throw Error('CSV contains duplicate column names.');
+  if (headers.includes('record_type')) return parseHazardRows(headers, rows);
   for (const column of required) if (!headers.includes(column)) throw Error('Missing required column ' + column + '.');
   for (const column of headers) if (!allowed.includes(column)) throw Error('Unknown column ' + column + '. Use the sample file headers.');
   const records = [];

@@ -1093,3 +1093,32 @@ footer { color: var(--muted); font-size: 12px; gap: 16px; }
 }
 .review-strip { padding: 12px 0; margin-bottom: 16px; }
 .review-strip strong { font-size: 21px; }
+
+.reading-finding[data-locate] { cursor: pointer; }
+.reading-finding:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+.source-details { margin: 10px 0; font-size: 12px; overflow-wrap: anywhere; }
+.source-details summary, .medical-details summary, .profile-mission summary { cursor: pointer; color: var(--cyan); }
+.medical-details { margin: 12px 0 22px; }
+.medical-details .form-grid { margin-top: 14px; }
+.reading-badge { font-size: 12px; padding: 5px 9px; margin: 5px 0; color: var(--amber); border-color: #80663d; background: #28271e; }
+.evidence-body .source-details { margin-bottom: 18px; }
+
+.inline-trend { margin: 14px 0 18px; padding: 12px 0; border-block: 1px solid var(--line); }
+.inline-trend figcaption { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+.mini-chart { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.mini-day { text-align: center; min-width: 0; font-size: 11px; font-variant-numeric: tabular-nums; }
+.mini-day > span { display: block; color: var(--ink); }
+.mini-track { height: 64px; margin: 6px auto; display: flex; align-items: flex-end; justify-content: center; border-bottom: 1px solid #557585; }
+.mini-bar { width: 65%; background: #65c4d0; border-radius: 3px 3px 0 0; }
+.mini-gap { margin: auto; color: var(--muted); }
+.mini-day small { font-size: 10px; color: var(--muted); }
+.trend-note { font-size: 11px; color: var(--muted); margin-top: 8px; }
+.mood-history { margin: 0; padding: 0; list-style: none; font-size: 12px; }
+.mood-history li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
+.mood-history span { color: var(--muted); }
+.mood-history strong { font-weight: 500; }
+.trend-empty { margin: 12px 0; }
+
+.mission-evidence { margin: 18px; font-size: 13px; }
+.mission-evidence dt { color: var(--muted); margin-top: 7px; }
+.mission-evidence dd { margin: 0; overflow-wrap: anywhere; }

@@ -37,7 +37,7 @@ export function freshProfile(demo) {
 }
 export function currentRecords(records) {
   const replaced = new Set(records.map(record => record.replaces).filter(Boolean));
-  return records.filter(record => !replaced.has(record.id)).sort((a, b) => a.time.localeCompare(b.time));
+  return records.filter(record => !record.retired && !replaced.has(record.id)).sort((a, b) => a.time.localeCompare(b.time));
 }
 export function latest(records, key) {
   return currentRecords(records).filter(record => record.values[key] !== undefined).at(-1);
@@ -148,4 +148,15 @@ export function reviewFinding(profile, findingId, note, time) {
   const action = { time, note: note.trim() };
   if (existing) existing.actions.push(action);
   else profile.reviews.push({ findingId, label: finding.label, sourceId: finding.record.id, actions: [action] });
+}
+
+export function sevenDayReadings(profile, key) {
+  const byDay = new Map();
+  for (const record of currentRecords(profile.records)) {
+    if (record.values[key] !== undefined) byDay.set(record.day, record);
+  }
+  return Array.from({ length: Math.min(7, profile.day) }, (_, index) => {
+    const day = Math.max(1, profile.day - 6) + index;
+    return { day, record: byDay.get(day) };
+  });
 }
