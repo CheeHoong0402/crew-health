@@ -1,0 +1,2 @@
+mission_day,timestamp_utc,phase,data_kind,heart_rate_bpm,systolic_mmhg,diastolic_mmhg,temperature_c,sleep_hours,mood,glucose_mgdl,context
+61,2026-12-03T08:10:00Z,Recovery,synthetic,150,180,110,39,3,Low,220,Isolated synthetic dashboard verification
