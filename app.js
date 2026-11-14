@@ -1,3 +1,4 @@
+import { updateMotion } from './motion.js';
 import { appendHazardCsv, hazardColumns } from './hazard-csv.js';
 import './assets/model-viewer.min.js';
 customElements.get('model-viewer').meshoptDecoderLocation = new URL('./assets/meshopt_decoder.js', import.meta.url).href;
@@ -10,7 +11,7 @@ const utc = value => new Date(value).toISOString().replace('T', ' ').slice(0, 16
 const nowInput = () => new Date().toISOString().slice(0, 16);
 let state = { demo: freshProfile(true), manual: freshProfile(false) };
 let profileKey = localStorage.getItem('crew-health-profile') || 'demo';
-let page = ['#profile', '#log'].includes(location.hash) ? location.hash.slice(1) : 'dashboard';
+let page = ['#dashboard', '#profile', '#log'].includes(location.hash) ? location.hash.slice(1) : 'home';
 let selected = 'heart';
 let back = false;
 const defaultLayers = [
@@ -95,16 +96,69 @@ function valueOf(data, key) {
 function render() {
   document.querySelectorAll('[data-page]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.page === page)));
   const data = profile();
+  $('#main').className = 'page-' + page;
+  if (page === 'home') {
+    $('#main').innerHTML = landingPage(data);
+    updateMotion(page);
+    return;
+  }
   $('#main').innerHTML = `
     <section class="mission-bar">
-      <div><h1>${page === 'dashboard' ? 'Health dashboard' : page === 'log' ? 'Activity log' : 'Astronaut profile & data'}</h1><p>${escape(data.personal?.name || 'Crew member')} ${escape(data.personal?.astronautId || 'A-07')} <span class="separator">/</span> Day ${data?.day ?? profile().day} <span class="separator">/</span> ${escape(data?.phase ?? profile().phase)}</p></div>
+      <div><span class="eyebrow">Your crew health workspace</span><h1>${page === 'dashboard' ? 'Health dashboard' : page === 'log' ? 'Activity log' : 'Astronaut profile & data'}</h1><p>${escape(data.personal?.name || 'Crew member')} ${escape(data.personal?.astronautId || 'A-07')} <span class="separator">/</span> Day ${data?.day ?? profile().day} <span class="separator">/</span> ${escape(data?.phase ?? profile().phase)}</p></div>
       <div class="mission-controls"><label class="small">Profile <select id="astronaut-profile">${Object.entries(state).filter(([, data]) => Array.isArray(data?.records)).map(([key, data]) => '<option value="' + key + '" ' + (key === profileKey ? 'selected' : '') + '>' + escape(data.label || (key === 'demo' ? 'Simulated mission' : 'Manual entries')) + '</option>').join('')}</select></label><span class="connection"><i></i>${navigator.onLine ? 'Local workspace' : 'Offline'}</span><span class="small muted">${storageReady ? 'Stored on this device' : 'Storage unavailable'}</span></div>
     </section>
     <div class="workspace-note"><span>${escape(data.label || (profileKey === 'demo' ? 'Simulated mission data' : 'Manual entries'))} · ${data.records.length} recorded entries</span></div>
     ${page === 'dashboard' ? dashboard(data) : page === 'log' ? logPage(data) : personalPage(data)}
   `;
   bindDashboard();
+  updateMotion(page);
 }
+
+function landingPage(data) {
+  return `
+    <section class="mediva-hero" aria-labelledby="home-title">
+      <div class="hero-intro"><h1 id="home-title">Supporting Crew Health<br>Across Every Mission</h1><p>A clearer view of astronaut wellbeing—bringing observations,<br class="desktop-break"> evidence, and crew actions together, even far from Earth.</p><div class="hero-actions"><a class="button-link primary" href="#dashboard"><span class="round-icon" aria-hidden="true">↗</span> Open Dashboard</a><a class="button-link secondary" href="#home-workflows">See How It Works <span class="round-icon" aria-hidden="true">→</span></a></div></div>
+      <div class="hero-gallery">
+        <a class="hero-photo nasa-exercise" href="#profile" aria-label="Open crew observations and data input"><span class="photo-chip">Crew observations</span><span class="gallery-arrow" aria-hidden="true">↗</span><span class="photo-credit">NASA · Steve Swanson exercising aboard the ISS</span></a>
+        <a class="hero-photo nasa-medical gallery-main" href="#dashboard" aria-label="Explore the crew health dashboard"><span class="gallery-arrow main-arrow" aria-hidden="true">↗</span><div class="glass-caption"><span class="glass-orbit" aria-hidden="true">◎</span><strong>Human health.<br>Mission context.</strong><span>Explore the working prototype <span aria-hidden="true">↗</span></span></div><span class="photo-credit">NASA · Spinal Ultrasound investigation</span></a>
+        <a class="hero-photo app-preview" href="#dashboard" aria-label="Review latest readings in the dashboard"><span class="app-preview-top">CREW HEALTH <span>Selected profile</span></span><h2>A closer look<br>at wellbeing.</h2><div class="app-preview-reading"><span>Resting heart rate</span><strong>${valueOf(data, 'pulse')}</strong></div><div class="app-preview-reading"><span>Hours of sleep</span><strong>${valueOf(data, 'sleep')}</strong></div><span class="app-preview-foot">Latest available observations <span aria-hidden="true">↗</span></span></a>
+      </div>
+    </section>
+    <section class="mediva-services" id="home-workflows" aria-labelledby="services-title">
+      <div class="mediva-section-heading"><h2 id="services-title">The Right Information.<br>A Clearer Next Step.</h2><p>From a daily check-in to a closer look at the evidence, keep the crew’s observations and actions in one local workspace.</p></div>
+      <div class="service-grid">
+        <article class="service-card"><span class="service-icon" aria-hidden="true">${uiIcon('input')}</span><h3>Health Data Input</h3><p>Import health and mission CSVs, or record a manual check-in. Preview validated records before saving.</p></article>
+        <article class="service-card"><span class="service-icon" aria-hidden="true">${uiIcon('heart')}</span><h3>Body System Review</h3><p>Explore reference anatomy and connect available readings with the relevant body system.</p></article>
+        <article class="service-card"><span class="service-icon" aria-hidden="true">${uiIcon('trend')}</span><h3>Observations & Trends</h3><p>See seven-day readings, source details, and fictional demo findings that need crew review.</p></article>
+        <article class="service-card"><span class="service-icon" aria-hidden="true">${uiIcon('sun')}</span><h3>Sleep & Wellbeing</h3><p>Review sleep and mood, record a support request, and keep sleep follow-ups visible.</p></article>
+      </div><div class="center-action"><a class="button-link primary" href="#dashboard">View the Workspace <span class="round-icon" aria-hidden="true">→</span></a></div>
+    </section>
+    <section class="mediva-features" aria-label="Crew wellbeing and evidence">
+      <article class="alternating-feature"><div class="feature-copy"><h2>Supporting Wellbeing<br>Beyond Earth</h2><p>Long missions bring changing routines and time away from home. Review sleep, mood, and shift context together, with a clear record of the crew’s next step.</p><ul class="check-list"><li>Sleep and mood observations</li><li>Visible short-sleep demo findings</li><li>Onboard crew support requests</li><li>Scheduled sleep follow-ups</li></ul><a class="button-link primary" href="#dashboard">Review Wellbeing <span class="round-icon" aria-hidden="true">→</span></a></div><figure class="feature-photo nasa-cupola" role="img" aria-label="NASA astronaut Jessica Watkins in the International Space Station cupola"><figcaption>NASA · Jessica Watkins aboard the ISS</figcaption></figure></article>
+      <article class="alternating-feature"><figure class="feature-photo nasa-medical" role="img" aria-label="NASA astronaut Chris Cassidy performing an ultrasound on Luca Parmitano aboard the ISS"><figcaption>NASA · Spinal Ultrasound investigation</figcaption></figure><div class="feature-copy"><h2>Evidence You Can Trace.<br>Actions You Can Follow.</h2><p>Give each observation its context. Review the time, source, mission phase, and correction history before recording an action or follow-up.</p><ul class="check-list"><li>Original observations retained</li><li>Source rows and import times</li><li>Audited corrections and crew actions</li><li>Local storage for offline review</li></ul><a class="button-link primary" href="#log">Explore the Activity Log <span class="round-icon" aria-hidden="true">→</span></a></div></article>
+    </section>
+    <section class="mediva-specialties" aria-labelledby="specialties-title"><div class="mediva-section-heading"><h2 id="specialties-title">A Closer Look at Crew Health</h2><p>Explore the app’s health and mission views. Missing measurements remain visibly unassessed.</p></div><div class="specialty-grid">
+      <a class="specialty-card anatomy-tile" href="#dashboard"><div class="specialty-visual"><model-viewer src="assets/anatomy.glb" alt="Educational reference anatomy" camera-orbit="-15deg 90deg 100%" exposure="1.1" interaction-prompt="none" disable-pan></model-viewer></div><span class="specialty-label">Body Systems <span aria-hidden="true">↗</span></span></a>
+      <a class="specialty-card sleep-tile" href="#dashboard"><div class="specialty-visual"><span class="tile-eyebrow">FICTIONAL DEMO</span><strong>Sleep &<br>wellbeing.</strong><div class="sleep-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><small>7-day observations</small></div><span class="specialty-label">Sleep & Mood <span aria-hidden="true">↗</span></span></a>
+      <a class="specialty-card" href="#profile"><div class="specialty-visual nasa-exercise" role="img" aria-label="NASA astronaut exercising on the ISS treadmill"></div><span class="specialty-label">Crew Observations <span aria-hidden="true">↗</span></span></a>
+      <a class="specialty-card" href="#log"><div class="specialty-visual nasa-cupola" role="img" aria-label="NASA astronaut in the space station cupola"></div><span class="specialty-label">Mission Evidence <span aria-hidden="true">↗</span></span></a>
+    </div></section>
+    <section class="mediva-pathways" aria-labelledby="pathways-title"><div class="pathway-menu"><p>Your Mission Workspace:<br> Connected Context for<br> Every Health Review</p><a href="#dashboard" class="pathway-active">Health Dashboard <span aria-hidden="true">↗</span></a><a href="#profile">Profile & Data <span aria-hidden="true">↗</span></a><a href="#log">Activity Log <span aria-hidden="true">↗</span></a><a href="#home-scope">Five-Hazard Scope <span aria-hidden="true">↗</span></a></div><div class="pathway-content"><h2 id="pathways-title">Your Crew, Our Focus.<br>Every Step of the Mission.</h2><div class="crew-fan" aria-label="NASA mission photography and app preview gallery"><div class="fan-card nasa-cupola"></div><div class="fan-card fan-app"><span>CSV</span><i></i><i></i><i></i><i></i></div><div class="fan-card nasa-exercise"></div><div class="fan-card nasa-medical"></div><div class="fan-card fan-app fan-reading"><span>Sleep</span><strong>5 <small>h</small></strong><small>Fictional demo</small></div><div class="fan-card nasa-cupola"></div><div class="fan-card nasa-exercise"></div></div><a class="button-link" href="#dashboard">Explore Crew Health <span class="round-icon" aria-hidden="true">↗</span></a><p class="gallery-disclaimer">NASA imagery provides mission context; pictured astronauts are not product users or endorsers.</p></div></section>
+    <section class="mediva-scope" id="home-scope"><p><strong>Five spaceflight hazards, one crew health context.</strong> Radiation; isolation and confinement; distance from Earth; changing gravity; hostile and closed environments. This prototype brings available observations and imported records into review. Personal dose calculations, cabin exposure evaluation, live devices, mission protocols, and ground delivery remain pending.</p></section>
+    <section class="mediva-closing"><p>A local health workspace. A clearer view of the mission.</p><h2>EXPLORE CREW HEALTH</h2><p>Start with fictional demo observations, bring in your data,<br>and follow the evidence through the working app.</p><a class="button-link primary" href="#dashboard">Open the Demo <span class="round-icon" aria-hidden="true">↗</span></a></section>
+  `;
+}
+
+function uiIcon(name) {
+  const paths = {
+    input: '<path d="M8 3h8l4 4v14H4V3h4m8 0v5h5M8 13h8m-8 4h5"/>',
+    heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/><path d="M3 12h5l2-4 4 8 2-4h5"/>',
+    trend: '<path d="M3 3v18h18M6 16l5-6 4 3 6-8m-5 0h5v5"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>'
+  };
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + paths[name] + '</svg>';
+}
+
 
 function systemContext(id) {
   if (id === 'exposure') return '<h3>Space radiation</h3><p>Personal dosimetry and spacewalk intervals are required. Dose coverage is unavailable.</p>';
@@ -147,6 +201,9 @@ function dashboard(data) {
   const system = systems.find(item => item.id === selected);
   return `
     <section class="review-strip"><div><strong>${pendingCount} reading${pendingCount === 1 ? '' : 's'} to review</strong><span>Latest available observations · Demo rules v1</span><details class="rule-reference"><summary>View alert thresholds</summary><p>Fictional demo references, inclusive boundaries. Outside these ranges prompts review.</p><ul>${Object.entries(demoRules).map(([key, rule]) => '<li>' + (metrics[key]?.label || 'Mood') + ' · ' + (key === 'mood' ? 'Low or Very low' : (key === 'sleep' ? (data.baseline?.low ?? rule.low) + '–' + (data.baseline?.high ?? rule.high) : rule.low + '–' + rule.high) + ' ' + metrics[key].unit) + '</li>').join('')}</ul></details></div><div class="input-actions"><button data-open-log>Log</button><button id="quick-checkin" class="primary">＋ Record check-in</button></div></section>
+    <section class="panel latest"><div class="panel-heading"><h2>Latest readings</h2><button id="open-data-latest">Open data input</button></div>
+      <div class="metric-strip">${['pulse', 'systolic', 'temperature', 'sleep', 'mood', 'glucose'].map(key => '<button class="metric ' + (readingFindings(data).some(finding => finding.key === key || key === 'systolic' && finding.key === 'diastolic') ? 'metric-watch' : '') + '" data-metric="' + key + '"><span>' + (key === 'systolic' ? 'Blood pressure' : metrics[key]?.label || 'Mood') + '</span><strong>' + (key === 'systolic' && latest(data.records, key) ? escape(latest(data.records, key).values.systolic) + '/' + escape(latest(data.records, key).values.diastolic ?? '—') + ' <small>mmHg</small>' : valueOf(data, key)) + '</strong></button>').join('')}</div>
+    </section>
     <div class="dashboard">
       <section class="panel attention"><div class="panel-heading"><h2>Attention queue</h2></div>${attention(data)}</section>
       <section class="panel anatomy"><div class="panel-heading"><h2>Body systems</h2><button id="flip" class="subtle">${back ? 'Back' : 'Front'} ⇄</button></div>
@@ -178,9 +235,7 @@ function dashboard(data) {
         <div class="exposure">${systemContext(system.id)}</div>
       </section>
     </div>
-    <section class="panel latest"><div class="panel-heading"><h2>Latest readings</h2><button id="open-data-latest">Open data input</button></div>
-      <div class="metric-strip">${['pulse', 'systolic', 'temperature', 'sleep', 'mood', 'glucose'].map(key => '<button class="metric ' + (readingFindings(data).some(finding => finding.key === key || key === 'systolic' && finding.key === 'diastolic') ? 'metric-watch' : '') + '" data-metric="' + key + '"><span>' + (key === 'systolic' ? 'Blood pressure' : metrics[key]?.label || 'Mood') + '</span><strong>' + (key === 'systolic' && latest(data.records, key) ? escape(latest(data.records, key).values.systolic) + '/' + escape(latest(data.records, key).values.diastolic ?? '—') + ' <small>mmHg</small>' : valueOf(data, key)) + '</strong></button>').join('')}</div>
-    </section>
+
 `;
 
 }
@@ -531,11 +586,15 @@ $('#dialog-body').addEventListener('click', event => { if (event.target.id === '
 $('#sources').onclick = () => modal('Research & scope', '<p>Based on the supplied challenge brief and agency resources. All 17 NASA risk categories have a destination in the system list. Specialized exams display their availability; this prototype does not infer a disease from routine vitals.</p><ul class="source-list">' + sources.map(([label, url]) => '<li><a target="_blank" rel="noreferrer" href="' + url + '">' + label + ' ↗</a></li>').join('') + '</ul><p class="small muted"><a href="assets/anatomy-ATTRIBUTION.md" target="_blank">BodyParts3D © DBCLS · Adapted by Open Anatomy 3D</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a><br>Layer colors and visibility modified · Male reference anatomy</p><p>The sleep comparison uses an explicitly fictional preflight reference. Real crew records require appropriate access controls and mission-approved protocols.</p>');
 document.querySelectorAll('[data-page]').forEach(button => button.onclick = () => { location.hash = button.dataset.page; });
 window.addEventListener('hashchange', () => {
-  if (!['', '#dashboard', '#profile', '#log'].includes(location.hash)) return;
-  page = ['#profile', '#log'].includes(location.hash) ? location.hash.slice(1) : 'dashboard';
+  if (!['', '#home', '#home-workflows', '#home-scope', '#dashboard', '#profile', '#log'].includes(location.hash)) return;
+  page = ['#dashboard', '#profile', '#log'].includes(location.hash) ? location.hash.slice(1) : 'home';
   render();
   $('#main').focus({ preventScroll: true });
-  requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
+  requestAnimationFrame(() => {
+    const section = document.getElementById(location.hash.slice(1));
+    if (section) section.scrollIntoView({ behavior: 'instant' });
+    else window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  });
 });
 function updateConnection() {
   const indicator = $('.connection');
