@@ -1,3 +1,4 @@
+node_modules/
 __pycache__/
 data/generated/
 artifacts/aether_protocols_256d.json

@@ -1,0 +1,22 @@
+# Offline astronaut workflow guidance
+
+## Feasibility decision
+
+Proceed to a prototype evaluation of a small, on-device text classifier. Its job is to help the astronaut find the right onboard workflow and present its reviewed instructions. For example, “I felt dizzy after landing” could open a symptom report and prompt for landing time, symptom onset, and posture. Any medical or operational response must come from an applicable, approved mission procedure.
+
+The project’s two health CSVs contain fictional measurements. They exercise app behavior but supply neither request-to-workflow labels nor validated outcomes for learning treatment, injury risk, or an emergency response. Rule-based reminders can already be derived from due dates, explicit crew requests, and verified thresholds.
+
+## Evidence collected
+
+Before removing the experimental code, a dependency-free TF-IDF nearest-centroid classifier ran locally in Node using 37 hand-written examples across six topics. It correctly routed 9 of 12 in-scope probes and declined the other three. Of four ambiguous or unrelated probes, it declined one and incorrectly routed three. For example, “pressure” selected personal vitals even though cabin pressure was equally plausible. These 16 developer-selected probes are a smoke test, not an independent accuracy estimate. Desktop Chrome offline restart was previously demonstrated for the base app. Classifier performance, usability, and durability on a target tablet remain unverified.
+
+## Implementation and evaluation sequence
+
+1. **Inventory actions.** Start with available forms for check-ins, symptom reports, open events, and sleep follow-ups. For each action, define accepted inputs, required evidence, and the steps the astronaut can actually complete. Add dosimeter import and habitat log review only after those features exist. Resolve the existing open-event action-note loss before offering that workflow through guidance.
+2. **Define the guided interaction.** Accept a short request. Return an action, its reason, a short checklist, and a button opening the correct form or case. If “pressure” could mean cabin or blood pressure, ask which. For unsupported questions, show the manual workflow list. Let the astronaut confirm before a record changes. Keep explicit urgent alerts and due tasks visible regardless of typed input or model output.
+3. **Prepare labels and review the instructions.** Collect fictional task descriptions for each workflow plus ambiguous, unrelated, and out-of-scope requests. Include synonyms, omitted units, negation, conflicting intents, and missing sensors. Assign expected actions or a clarification response. Have reviewers agree on ambiguous labels and checklist wording. Split evaluation examples by author or scenario family before tuning so paraphrases of training examples cannot inflate the result.
+4. **Compare two offline options.** Benchmark a keyword/menu baseline against a compact TF-IDF classifier. Use topic-specific terms and a held-out validation set to tune when the classifier may suggest a workflow. Only offer actions available on that device for the selected profile. Keep rules responsible for urgency and use the classifier solely for navigation. If the menu is as effective, ship the simpler interface.
+5. **Measure what matters to the astronaut.** Report per-workflow correct routes and errors, the fraction of requests answered, wrong suggestions on unsupported requests, and successful task completion versus the menu. Count abstentions separately. Agree on acceptance thresholds before opening the final test set. Require every scripted urgent case to retain its alert and every generated action to open a valid workflow. Treat any failure of those two checks as a release blocker.
+6. **Verify on the intended tablet.** Bundle the model and reviewed instructions with the offline app, record their versions, and test cold restart, response time, access to the evidence, failed saves, and switching profiles. Disconnect the server and complete each offered workflow end to end. Check that private notes stay out of model training, telemetry, and shared handoffs unless separately authorized.
+
+**Release decision:** enable the guide only if it improves workflow completion over the baseline, meets the agreed routing and abstention targets, and passes offline and alert-preservation tests. Clinical decision support would require separate evidence, qualified review, and mission validation.
