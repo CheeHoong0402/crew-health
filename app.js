@@ -194,7 +194,7 @@ async function changeMission(edit) {
 }
 function systemContext(id, data) {
   const rows = importedMissionRows(data);
-  if (rows.some(row => row.body_system === id)) return '<h3>Mission evidence</h3><p>Imported observations are available above. Open Source details for collection method, status and original records.</p>';
+  if (rows.some(row => row.body_system === id)) return '';
 
   if (id === 'exposure') return '<h3>Space radiation</h3><p>Personal dosimetry and spacewalk intervals are required. Dose coverage is unavailable.</p>';
   if (id === 'operations') return '<h3>Hostile / closed environment</h3><p>Cabin CO₂, pressure, temperature and compartment logs are unavailable.</p><h3>Distance from Earth</h3><p>Records and crew actions save locally for offline review. Ground receipt is unconfirmed.</p>';
@@ -228,10 +228,10 @@ function findingGauge(range) {
     return '<path class="' + className + '" d="M ' + point(start).join(' ') + ' A 88 88 0 0 1 ' + point(end).join(' ') + '"/>';
   };
   const reference = low == null ? 'Demo upper limit ' + number(high) :
-    high == null ? 'Demo minimum ' + number(low) : 'Demo range ' + number(low) + '�' + number(high);
+    high == null ? 'Demo minimum ' + number(low) : 'Demo range ' + number(low) + '–' + number(high);
   const deviation = scale.deviation === 0 ? 'Within demo reference' :
     number(Math.abs(scale.deviation)) + ' ' + unit + (scale.deviation < 0 ? ' below minimum' : ' above maximum');
-  const label = number(value) + ' ' + unit + (range.peak ? ' � Most extreme interval reading' : '');
+  const label = number(value) + ' ' + unit + (range.peak ? ' · Most extreme interval reading' : '');
   return '<figure class="finding-gauge" role="img" aria-label="' + escape(label + '. ' + reference + ' ' + unit + '. ' + deviation) + '">' +
     '<svg viewBox="0 0 240 155" aria-hidden="true" focusable="false">' +
     arc(0, scale.start, 'gauge-review') + arc(scale.start, scale.end, 'gauge-reference') + arc(scale.end, 1, 'gauge-review') +
@@ -263,13 +263,21 @@ function bodyMarkers(data) {
   }).join('');
 }
 
+const readingIcons = {
+  pulse: '<path d="M2 12h4l3-8 6 16 3-8h4"/>',
+  systolic: '<rect x="3" y="4" width="14" height="16" rx="3"/><path d="M17 9h2a3 3 0 0 1 0 6h-2M7 9h6M10 6v6M7 16h6"/>',
+  temperature: '<path d="M9 14.5V5a3 3 0 0 1 6 0v9.5a5 5 0 1 1-6 0Z"/><path d="M12 8v10"/>',
+  sleep: '<path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/>',
+  mood: '<circle cx="12" cy="12" r="9"/><path d="M8 14a4 4 0 0 0 8 0M8 9h.01M16 9h.01"/>',
+  glucose: '<path d="M12 2s-7 8-7 13a7 7 0 0 0 14 0c0-5-7-13-7-13Z"/><path d="M9 16h6M12 13v6"/>'
+};
 function dashboard(data) {
   const pendingCount = allFindings(data).filter(item => (!item.missionFinding || item.healthConcern) && !item.review).length;
   const system = systems.find(item => item.id === selected);
   return `
     <section class="review-strip"><div><strong>${pendingCount} reading${pendingCount === 1 ? '' : 's'} to review</strong><span>Latest available observations · Demo rules v1</span><details class="rule-reference"><summary>View alert thresholds</summary><p>Fictional demo references, inclusive boundaries. Outside these ranges prompts review.</p><ul>${Object.entries(demoRules).map(([key, rule]) => '<li>' + (metrics[key]?.label || 'Mood') + ' · ' + (key === 'mood' ? 'Low or Very low' : (key === 'sleep' ? (data.baseline?.low ?? rule.low) + '–' + (data.baseline?.high ?? rule.high) : rule.low + '–' + rule.high) + ' ' + metrics[key].unit) + '</li>').join('')}</ul></details></div><div class="input-actions"><button data-open-log>Log</button><button id="quick-checkin" class="primary">＋ Record check-in</button></div></section>
     <section class="panel latest"><div class="panel-heading"><h2>Latest readings</h2><button id="open-data-latest">Open data input</button></div>
-      <div class="metric-strip">${['pulse', 'systolic', 'temperature', 'sleep', 'mood', 'glucose'].map(key => '<button class="metric ' + (readingFindings(data).some(finding => finding.key === key || key === 'systolic' && finding.key === 'diastolic') ? 'metric-watch' : '') + '" data-metric="' + key + '"><span>' + (key === 'systolic' ? 'Blood pressure' : metrics[key]?.label || 'Mood') + '</span><strong>' + (key === 'systolic' && latest(data.records, key) ? escape(latest(data.records, key).values.systolic) + '/' + escape(latest(data.records, key).values.diastolic ?? '—') + ' <small>mmHg</small>' : valueOf(data, key)) + '</strong></button>').join('')}</div>
+      <div class="metric-strip">${['pulse', 'systolic', 'temperature', 'sleep', 'mood', 'glucose'].map(key => '<button class="metric ' + (readingFindings(data).some(finding => finding.key === key || key === 'systolic' && finding.key === 'diastolic') ? 'metric-watch' : latest(data.records, key) ? 'metric-normal' : '') + '" data-metric="' + key + '"><svg class="metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + readingIcons[key] + '</svg><span>' + (key === 'systolic' ? 'Blood pressure' : metrics[key]?.label || 'Mood') + '</span><strong>' + (key === 'systolic' && latest(data.records, key) ? escape(latest(data.records, key).values.systolic) + '/' + escape(latest(data.records, key).values.diastolic ?? '—') + ' <small>mmHg</small>' : valueOf(data, key)) + '</strong></button>').join('')}</div>
     </section>
     <div class="dashboard">
       <section class="panel attention"><div class="panel-heading"><h2>Attention queue</h2></div>${attention(data)}</section>
@@ -278,12 +286,12 @@ function dashboard(data) {
           <details class="layer-settings"><summary>Visible layers & opacity</summary>
             <fieldset><legend>Body layers</legend>${layers.map(layer => `<div class="layer-row"><label><input type="checkbox" data-layer="${layer.id}" ${layer.visible ? 'checked' : ''}> ${layer.label}</label><input type="range" min="1" max="100" value="${layer.opacity}" data-opacity="${layer.id}" aria-label="${layer.label} opacity" ${layer.visible ? '' : 'disabled'}><output>${layer.opacity}%</output></div>`).join('')}</fieldset><button id="reset-layers" class="subtle wide" type="button">Reset to default</button>
           </details>
-          <model-viewer id="body-model" src="assets/anatomy.glb" alt="Interactive layered human anatomy. Drag to rotate, pinch or scroll to zoom. Use the system list for health evidence."
-            camera-controls touch-action="pan-y" camera-orbit="${back ? '180' : '0'}deg 90deg 105%" min-camera-orbit="auto 15deg 40%" max-camera-orbit="auto 165deg 180%" shadow-intensity="0.5" exposure="1.2" interaction-prompt="none" disable-pan>
+          <model-viewer id="body-model" src="assets/anatomy.glb" alt="Interactive layered human anatomy. Drag to rotate. Zoom is disabled. Use the system list for health evidence."
+            camera-controls touch-action="pan-y" camera-orbit="${back ? '180' : '0'}deg 90deg 105%" min-camera-orbit="auto 15deg 40%" max-camera-orbit="auto 165deg 180%" shadow-intensity="0.5" exposure="1.2" interaction-prompt="none" disable-pan disable-zoom>
             ${bodyMarkers(data)}
           </model-viewer>
           <p id="model-status" class="visually-hidden" role="status">Loading 3D anatomy…</p>
-          <p class="small muted">Drag to rotate · Scroll or pinch to zoom</p>
+          <p class="small muted">Drag to rotate · Fixed zoom</p>
         </div>
       </section>
       <section class="panel evidence"><details class="system-menu"><summary><span>Review body system</span><strong role="heading" aria-level="2">${system.label}</strong></summary><div class="system-list" aria-label="Body system selection">${systems.map(item => '<button data-system="' + item.id + '" aria-pressed="' + (item.id === selected) + '">' + item.label + '</button>').join('')}</div></details>
@@ -294,7 +302,7 @@ function dashboard(data) {
             (finding ? '<button class="reading-badge" data-finding="' + finding.id + '">' + (finding.review ? 'Reviewed' : 'Review reading') + '</button>' : '') +
             (record ? '<p class="small muted">' + utc(record.time) + '</p>' : '') + trendChart(data, key) + (record ? sourceDetails(record) : '');
         }).join('') : ''}
-        ${systemMeasurementPanel(data, selected)}${missionEvidence(data, selected)}<p class="evidence-explanation">${system.evidence}</p>
+        ${systemMeasurementPanel(data, selected)}<p class="evidence-explanation">${system.evidence}</p>
         <details><summary>Associated research risks</summary><ul>${system.risks.map(risk => '<li>' + risk + '</li>').join('')}</ul><a href="${sources[1][1]}" target="_blank" rel="noreferrer">NASA risk reference ↗</a></details>
         <button id="history" class="wide">View observations & trends</button>
         <button id="report" class="subtle wide">＋ Record symptom or event</button>
@@ -843,15 +851,22 @@ function trendChart(data, key, field = metrics[key]) {
     return '<figure class="inline-trend"><figcaption>7-day mood history · Daily latest</figcaption><ol class="mood-history">' + daily.map(({ day, record }) =>
       '<li><span>Day ' + day + '</span><strong>' + escape(record?.values.mood ?? 'No reading') + '</strong></li>').join('') + '</ol></figure>';
   }
-  const max = Math.max(1, ...daily.map(item => item.record?.values[key] ?? 0));
-  return '<figure class="inline-trend"><figcaption>7-day trend · ' + unit + ' · Daily latest</figcaption><div class="mini-chart" role="img" aria-label="' +
-    escape(label + ', ' + unit + '. Bars start at zero. ' + daily.map(({ day, record }) => 'Day ' + day + ': ' + (record ? record.values[key] : 'no reading')).join('. ')) + '">' +
-    daily.map(({ day, record }) => {
-      const value = record?.values[key];
-      return '<div class="mini-day"><span>' + (value ?? '—') + '</span><div class="mini-track">' +
-        (value !== undefined ? '<div class="mini-bar" style="height:' + value / max * 100 + '%"></div>' : '<span class="mini-gap">—</span>') +
-        '</div><small>D' + day + '</small></div>';
-    }).join('') + '</div><p class="trend-note">Zero-based scale · — No reading</p></figure>';
+  const values = daily.map(item => item.record?.values[key]);
+  const min = Math.min(0, ...values.filter(value => value !== undefined));
+  const max = Math.max(min + 1, ...values.filter(value => value !== undefined));
+  let path = '';
+  const points = values.map((value, index) => {
+    if (value === undefined) return '';
+    const x = 12 + index * 46;
+    const y = 72 - (value - min) / (max - min) * 60;
+    path += (index > 0 && values[index - 1] !== undefined ? ' L ' : ' M ') + x + ' ' + y;
+    return '<circle cx="' + x + '" cy="' + y + '" r="3"/>';
+  }).join('');
+  return '<figure class="inline-trend"><figcaption>7-day trend · ' + escape(unit) + ' · Daily latest</figcaption><svg class="trend-line" viewBox="0 0 300 84" role="img" aria-label="' +
+    escape(label + ', ' + unit + '. Line graph. ' + daily.map(({ day, record }) => 'Day ' + day + ': ' + (record ? record.values[key] : 'no reading')).join('. ')) + '">' +
+    '<path class="trend-axis" d="M12 72H288"/><path class="trend-path" d="' + path + '"/>' + points + '</svg><div class="mini-chart">' +
+    daily.map(({ day, record }) => '<div class="mini-day"><span>' + escape(record?.values[key] ?? '—') + '</span><small>D' + day + '</small></div>').join('') +
+    '</div><p class="trend-note">Scale ' + min + '–' + max + ' ' + escape(unit) + ' · — No reading; gaps are not connected</p></figure>';
 }
 
 function drawTrend(key) {
