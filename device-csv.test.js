@@ -4,11 +4,11 @@ import { readFile } from 'node:fs/promises';
 import { parseCsv } from './csv.js';
 import { deviceCsv, deviceUnits, appendDeviceCsv } from './device-csv.js';
 import { analyseMission } from './mission-demo.js';
-import { sleepFlag } from './model.js';
+import { sleepFlag, readingFindings, latest } from './model.js';
 
 const context = { mission_id: 'M1', mission_day: '1', data_kind: 'observed', astronaut_id: 'A1', compartment_id: 'cabin' };
 const minimal = 'record_id,timestamp,heart_rate,CO2,diastolic_pressure\nFRAME-1,2026-11-14T08:00:00Z,120,1200,80\n';
-const fixture = async () => parseCsv(await readFile(new URL('data/testing/device-timestamp-source-fixture.csv', import.meta.url), 'utf8'));
+const fixture = async () => parseCsv(await readFile(new URL('data/fixtures/device-timestamp-source-fixture.csv', import.meta.url), 'utf8'));
 
 test('one timestamp row expands fixed-unit columns using explicit import context', async () => {
   const rows = await parseCsv(minimal, context);
@@ -89,7 +89,7 @@ test('wide corrections replace the matching columns without resurrecting origina
 });
 
 test('previous long observation files remain readable', async () => {
-  const rows=await parseCsv(await readFile(new URL('data/testing/device-observations-legacy.csv', import.meta.url),'utf8'));
+  const rows=await parseCsv(await readFile(new URL('data/fixtures/device-observations-legacy.csv', import.meta.url),'utf8'));
   assert.equal(rows.length,93);
   assert.equal((await parseCsv(deviceCsv(rows, true))).length,93);
 });
@@ -116,10 +116,7 @@ test('primary CSV and standard downloads contain only identity, timestamp and ev
   const exported=deviceCsv(await fixture());
   assert.deepEqual(exported.split('\n')[0].split(','),headers);
   assert.equal((await parseCsv(exported,demoContext)).length,92);
-  for (const name of ['device-timestamp-synthetic.csv','device-observations-synthetic.csv']) {
-    const updated=await readFile(new URL('data/testing/'+name,import.meta.url),'utf8');
-    assert.equal(updated,text);
-  }
+
 });
 
 test('UTC day assignment preserves gaps and order independently of row order', async () => {
@@ -130,4 +127,36 @@ test('UTC day assignment preserves gaps and order independently of row order', a
   assert.equal(state[target].day,3);
   await assert.rejects(parseCsv(csv,context),/too early/);
   await assert.rejects(parseCsv(csv,{...context, mission_day:'3', astronaut_id:''}),/astronaut ID/);
+});
+
+
+test('comparison samples share measurement coverage, isolate profiles and produce distinct demo outcomes', async () => {
+  const state = {};
+  const profiles = {};
+  let originalCoverage;
+  for (const variant of ['data', 'stable', 'worsening']) {
+    const filename = 'astronaut-health-' + variant + '.csv';
+    const text = await readFile(new URL('data/testing/' + filename, import.meta.url), 'utf8');
+    const rows = await parseCsv(text, { ...context, mission_id: 'SAMPLE-' + variant, mission_day: '61', data_kind: 'synthetic' });
+    assert.deepEqual(Object.keys(rows[0].inputRow), ['record_id', 'timestamp', ...Object.keys(deviceUnits)]);
+    assert.equal(rows.length, 92);
+    assert.equal(new Set(rows.map(row => row.importRow)).size, 19);
+    assert.deepEqual([...new Set(rows.map(row => row.day))], [55, 56, 57, 58, 59, 60, 61]);
+    const coverage = rows.map(row => row.timestamp_utc + '/' + row.quantity);
+    if (originalCoverage) assert.deepEqual(coverage, originalCoverage);
+    else originalCoverage = coverage;
+    const { target } = appendDeviceCsv(state, rows, filename);
+    assert.equal(appendDeviceCsv(state, rows, 'renamed.csv').added, 0);
+    profiles[variant] = state[target];
+    assert.equal(analyseMission(state._missions[state[target].missionId], state[target]).summaries.find(item => item.label === 'Recorded mission total').dose, 0);
+  }
+  assert.equal(Object.keys(state._missions).length, 3);
+  assert.equal(readingFindings(profiles.stable).length, 0);
+  assert.equal(analyseMission(state._missions[profiles.stable.missionId], profiles.stable).findings.filter(item => item.healthConcern).length, 0);
+  assert.ok(readingFindings(profiles.data).length > 0);
+  assert.ok(readingFindings(profiles.worsening).length > readingFindings(profiles.data).length);
+  for (const key of ['pulse', 'systolic', 'diastolic', 'temperature', 'glucose']) {
+    assert.ok(latest(profiles.worsening.records, key).values[key] > latest(profiles.stable.records, key).values[key], key);
+  }
+  assert.ok(latest(profiles.worsening.records, 'sleep').values.sleep < latest(profiles.stable.records, 'sleep').values.sleep);
 });

@@ -35,7 +35,7 @@ function coverageHtml() {
 export async function mountDemoEditor(root, onSave) {
   try {
     if (!draft) {
-      loading ||= fetch('data/testing/five-hazards-synthetic.csv').then(response => {
+      loading ||= fetch('data/fixtures/five-hazards-synthetic.csv').then(response => {
         if (!response.ok) throw Error('Could not load the complete example. Retry while the app server is running.');
         return response.text();
       }).then(parseCsv).catch(error => { loading = null; throw error; });

@@ -6,7 +6,7 @@ import { appendHazardCsv } from './hazard-csv.js';
 import { analyseMission, evaluateMission, demoCoverage, missionCsv, separateDemo, scenarioTime, recordMissionAction, handoffSnapshot } from './mission-demo.js';
 
 async function fixture() {
-  const rows = await parseCsv(await readFile(new URL('data/testing/five-hazards-synthetic.csv', import.meta.url), 'utf8'));
+  const rows = await parseCsv(await readFile(new URL('data/fixtures/five-hazards-synthetic.csv', import.meta.url), 'utf8'));
   const state = {};
   const { target } = appendHazardCsv(state, rows, 'test.csv');
   const profile = state[target], mission = state._missions[profile.missionId];

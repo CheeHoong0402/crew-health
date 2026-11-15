@@ -6,9 +6,12 @@ import { freshProfile, sleepFlag } from './model.js';
 
 const header = 'mission_day,timestamp_utc,phase,data_kind,sleep_hours,context\n';
 
-test('both supplied scenarios import independently and exercise the sleep rule', async () => {
+test('legacy health scenarios import independently and exercise the sleep rule', async () => {
   for (const [filename, warning] of [['healthy-data.csv', false], ['unhealthy-data.csv', true]]) {
-    const records = await parseCsv(await readFile(new URL('data/testing/' + filename, import.meta.url), 'utf8'));
+    const text = header + Array.from({ length: 7 }, (_, index) =>
+      (43 + index) + ',2026-11-' + (15 + index) + 'T08:10:00Z,Transit,synthetic,' + (warning ? 5 : 8) + ',Synthetic sleep scenario'
+    ).join('\n');
+    const records = await parseCsv(text);
     assert.equal(records.length, 7);
     const profile = csvTestProfile(records, filename);
     assert.equal(appendCsv(profile, records, filename), 7);
@@ -77,7 +80,7 @@ test('import keeps source row and import time without changing duplicate identit
 
 test('combined fixture imports all records, isolates crew, preserves fields and deduplicates', async () => {
   const { appendHazardCsv, hazardColumns } = await import('./hazard-csv.js');
-  const rows = await parseCsv(await readFile(new URL('data/testing/five-hazards-synthetic.csv', import.meta.url), 'utf8'));
+  const rows = await parseCsv(await readFile(new URL('data/fixtures/five-hazards-synthetic.csv', import.meta.url), 'utf8'));
   const state = { legacy: freshProfile(true) };
   const result = appendHazardCsv(state, rows, 'five.csv');
   assert.equal(result.added, 142);
@@ -103,7 +106,7 @@ test('combined fixture imports all records, isolates crew, preserves fields and 
   assert.deepEqual(empty, {});
 });
 test('combined parser rejects bad times, units, values and missing columns', async () => {
-  const text = await readFile(new URL('data/testing/five-hazards-synthetic.csv', import.meta.url), 'utf8');
+  const text = await readFile(new URL('data/fixtures/five-hazards-synthetic.csv', import.meta.url), 'utf8');
   await assert.rejects(parseCsv(text.replace('uSv', 'mystery')), /unit/);
   await assert.rejects(parseCsv(text.replace('2026-12-03T12:00:00Z', '2026-02-30T12:00:00Z')), /timestamp/);
   await assert.rejects(parseCsv(text.replace('record_type', 'unknown_type')), /column/);
@@ -112,7 +115,7 @@ test('combined parser rejects bad times, units, values and missing columns', asy
 });
 test('combined health source correction retires derived values and keeps originals', async () => {
   const { appendHazardCsv } = await import('./hazard-csv.js');
-  const rows = await parseCsv(await readFile(new URL('data/testing/five-hazards-synthetic.csv', import.meta.url), 'utf8'));
+  const rows = await parseCsv(await readFile(new URL('data/fixtures/five-hazards-synthetic.csv', import.meta.url), 'utf8'));
   const state = {};
   const {target} = appendHazardCsv(state, rows, 'five.csv');
   const source = rows.find(row => row.record_id === 'WELL-61-SLEEP');

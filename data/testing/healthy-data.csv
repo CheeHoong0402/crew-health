@@ -1,8 +1,0 @@
-mission_day,timestamp_utc,phase,data_kind,heart_rate_bpm,systolic_mmhg,diastolic_mmhg,temperature_c,sleep_hours,mood,glucose_mgdl,context
-43,2026-11-15T08:10:00Z,Transit,synthetic,64,118,76,36.7,7.5,Good,92,"Synthetic healthy scenario; at rest; oral thermometer; before breakfast"
-44,2026-11-16T08:10:00Z,Transit,synthetic,63,117,75,36.6,8,Good,90,"Synthetic healthy scenario; consistent shift; before breakfast"
-45,2026-11-17T08:10:00Z,Transit,synthetic,65,119,77,36.7,7.8,Very good,94,"Synthetic healthy scenario; at rest; before breakfast"
-46,2026-11-18T08:10:00Z,Transit,synthetic,64,118,76,36.8,7.6,Good,91,"Synthetic healthy scenario; at rest; before breakfast"
-47,2026-11-19T08:10:00Z,Transit,synthetic,62,116,74,36.6,8,Good,89,"Synthetic healthy scenario; at rest; before breakfast"
-48,2026-11-20T08:10:00Z,Transit,synthetic,64,118,76,36.7,7.7,Very good,93,"Synthetic healthy scenario; at rest; before breakfast"
-49,2026-11-21T08:10:00Z,Transit,synthetic,63,117,75,36.7,7.8,Good,92,"Synthetic healthy scenario; at rest; before breakfast"

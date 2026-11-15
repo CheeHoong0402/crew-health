@@ -521,14 +521,19 @@ function importCsv() {
   let filename = '';
   let generation = 0;
   let selectedFile;
-  const sample = { name: 'astronaut-health-data.csv', async text() {
+  const samples = [
+    { name: 'astronaut-health-data.csv', label: 'Original sample · mixed concerns', mission: 'SAMPLE-ORIGINAL' },
+    { name: 'astronaut-health-stable.csv', label: 'Stable readings', mission: 'SAMPLE-STABLE' },
+    { name: 'astronaut-health-worsening.csv', label: 'Worsening readings', mission: 'SAMPLE-WORSENING' }
+  ].map(item => ({ ...item, async text() {
     const response = await fetch('data/testing/' + this.name);
     if (!response.ok) throw Error('The sample could not be loaded. Reopen the app online once or select a local CSV.');
     return response.text();
-  } };
+  } }));
+  let sample;
   modal('Import observation CSV', `<form>
     <p>Upload comma-separated UTF-8 data, up to 1 MB and 1000 rows. Every row is validated before a single save.</p>
-    <button type="button" id="csv-sample">Try the 7-day sample</button>
+    <label>Compare fictional 7-day datasets<select id="csv-sample"><option value="" disabled selected>Choose a sample to preview</option>${samples.map(item => '<option value="' + item.name + '">' + item.label + '</option>').join('')}</select></label>
     <label>Or choose a CSV file<input id="csv-file" type="file" accept=".csv,text/csv"></label>
     <label>Destination<select id="csv-destination" name="destination"><option value="current">Observed mission records</option><option value="test" selected>Separate synthetic test profile</option><option value="mission" disabled>Mission & crew profiles</option></select></label>
     <details><summary>Measurement context</summary><p>For files without identifiers, these settings apply to the whole file. The synthetic defaults identify a fictional astronaut and cabin.</p>
@@ -547,6 +552,8 @@ function importCsv() {
         const synthetic = imported.every(row => row.data_kind === 'synthetic');
         const rows = synthetic ? separateDemo(imported, crypto.randomUUID().slice(0, 8)) : imported;
         const result = appendDeviceCsv(next, rows, importedName, $('#csv-crew').value.trim());
+        const scenario = samples.find(item => item.name === importedName);
+        if (synthetic && scenario) next[result.target].label = 'Synthetic · ' + scenario.label + ' · ' + next[result.target].astronautId;
         await commit(next);
         profileKey = result.target;
         localStorage.setItem('crew-health-profile', profileKey);
@@ -591,7 +598,7 @@ function importCsv() {
   const destination = $('#csv-destination');
   function setContext() {
     const test = destination.value === 'test';
-    $('#csv-mission').value = test ? 'SAMPLE' : profile().missionId || profile().personal?.missionName || '';
+    $('#csv-mission').value = test ? sample?.mission || 'SAMPLE' : profile().missionId || profile().personal?.missionName || '';
     $('#csv-crew').value = test ? 'A-07' : profile().astronautId || profile().personal?.astronautId || '';
     $('#csv-compartment').value = test ? 'sleeping-quarters' : '';
     $('#csv-day').value = test ? 61 : profile().day;
@@ -602,12 +609,16 @@ function importCsv() {
   const submit = $('#dialog-body [type=submit]');
   submit.disabled = true;
   $('#csv-file').onchange = event => {
+    sample = undefined;
+    $('#csv-sample').value = '';
     if (destination.value === 'mission') { destination.value = 'test'; setContext(); }
     destination.disabled = false;
     destination.querySelector('[value=test]').disabled = false;
     preview(event.target.files[0]);
   };
-  $('#csv-sample').onclick = () => {
+  $('#csv-sample').onchange = event => {
+    sample = samples.find(item => item.name === event.target.value);
+    if (!sample) return;
     $('#csv-file').value = '';
     destination.querySelector('[value=test]').disabled = false;
     destination.value = 'test';
