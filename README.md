@@ -1,4 +1,4 @@
-# Project AETHER — Autonomous Flight Surgeon AI (crew-health)
+# Project AETHER — Autonomous Flight Surgeon AI (Astra Health)
 
 4-tier offline health-monitoring pipeline (Tier 1 HBM physics, Tier 2 anomaly ML, Tier 3 NASA-STD-3001 interlock,
 Tier 3.5 multimodal RAG, Tier 4 Section-6 JSON). Spec: `docs/architecture_plan.md`. Results: `docs/REPORT.md`.
@@ -23,7 +23,7 @@ Policy: only the deterministic Tier 3 interlock (and abnormal scans) set the ale
 
 ---
 
-# Crew Health
+# Astra Health
 
 Offline astronaut health monitoring demo based on the supplied challenge brief. Use artificial data for judging. Run `npm start`, then open http://127.0.0.1:4173. No dependency installation is needed. Run `npm test`.
 
@@ -125,7 +125,7 @@ Integration baseline: `main` and `ui-refine` both pointed to `25662b4` when this
 
 ### Full-page reference layout and photography
 
-The overview follows the Mediva full landing-page composition: utility/navigation, gradient hero with three visual panels, four service cards, two alternating photo/text features, four visual health cards, navigation beside a seven-panel gallery, oversized closing callout, and four-column dark footer. Copy and routes use Crew Health's shipped workflows. NASA photos are embedded as optimized JPEG data URLs in CSS so the existing server allowlist and offline file set stay unchanged. Move these to standalone static assets when server asset delivery can be changed.
+The overview follows the Mediva full landing-page composition: utility/navigation, gradient hero with three visual panels, four service cards, two alternating photo/text features, four visual health cards, navigation beside a seven-panel gallery, oversized closing callout, and four-column dark footer. Copy and routes use Astra Health's shipped workflows. NASA photos are embedded as optimized JPEG data URLs in CSS so the existing server allowlist and offline file set stay unchanged. Move these to standalone static assets when server asset delivery can be changed.
 
 The corner backdrop uses a locally cached Viking mosaic credited to NASA/JPL/USGS. [Global Color Views of Mars](https://science.nasa.gov/photojournal/global-color-views-of-mars/).
 

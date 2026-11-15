@@ -1,4 +1,4 @@
-# Crew Health · Repository guide and implementation plan
+# Astra Health · Repository guide and implementation plan
 
 ## Product and scope
 

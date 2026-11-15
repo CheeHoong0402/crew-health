@@ -19,7 +19,7 @@ http.createServer(async (request, response) => {
     response.end(content);
   } catch { response.writeHead(404).end('Not found'); }
 }).listen(4173, '127.0.0.1', async () => {
-  console.log('Crew Health is running at http://localhost:4173');
+  console.log('Astra Health is running at http://localhost:4173');
   const python = path.join(root, '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
   if (!existsSync(python)) return;
   try {

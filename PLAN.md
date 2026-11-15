@@ -1,10 +1,10 @@
-# Crew Health UI refinement
+# Astra Health UI refinement
 
 ## Outcome
 Mediva-inspired homepage → working demo dashboard → CSV/manual input → updated findings, on `ui-refine`. Preserve current repository content and working workflows.
 
 ## Decisions and approach
-- Match the full Mediva landing-page section order and proportions. Replace clinic content with existing Crew Health workflows, mixed app visuals and credited real NASA photography. Preserve four services, alternating features, four visual cards, navigation/gallery, oversized closing headline and dark footer. Explain all five hazards in the scope copy.
+- Match the full Mediva landing-page section order and proportions. Replace clinic content with existing Astra Health workflows, mixed app visuals and credited real NASA photography. Preserve four services, alternating features, four visual cards, navigation/gallery, oversized closing headline and dark footer. Explain all five hazards in the scope copy.
 - Restyle dashboard, profile/data, log, dialogs, forms and responsive states together using the existing framework-free frontend and local anatomy asset.
 - Preserve IDs, field names, input handlers, validation, domain APIs, storage semantics, fixtures and server. Only routing, rendering markup, CSS, and the frontend cache version change.
 - Teammate develops CSV and manual inputs on `main`. Both branches matched `25662b4` at the latest fetch; forthcoming changes require a later integration check.

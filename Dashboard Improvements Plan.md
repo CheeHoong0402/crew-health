@@ -1,4 +1,4 @@
-# Crew Health improvements for the challenge demo
+# Astra Health improvements for the challenge demo
 
 The [challenge brief](./Challenge%20Description.docx) asks astronauts to gather indicators, assess their own health, and act. Use one fictional incident to demonstrate all three steps. The proposed demo target is for a first-time reviewer to record an action and recover the assigned follow-up in three minutes without coaching.
 
