@@ -15,7 +15,7 @@ const utc = value => new Date(value).toISOString().replace('T', ' ').slice(0, 16
 const nowInput = () => new Date().toISOString().slice(0, 16);
 let state = { demo: freshProfile(true), manual: freshProfile(false) };
 let profileKey = localStorage.getItem('crew-health-profile') || 'demo';
-let page = ['#dashboard', '#profile', '#log'].includes(location.hash) ? location.hash.slice(1) : 'home';
+let page = location.hash.startsWith('#dashboard') ? 'dashboard' : ['#profile', '#log'].includes(location.hash) ? location.hash.slice(1) : 'home';
 let selected = 'heart';
 let back = false;
 const defaultLayers = [
@@ -101,22 +101,23 @@ function valueOf(data, key) {
 function render() {
   document.querySelectorAll('[data-page]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.page === page)));
   const data = profile();
+  document.body.classList.toggle('health-workspace', page === 'dashboard');
   $('#main').className = 'page-' + page;
   if (page === 'home') {
     $('#main').innerHTML = landingPage(data);
-    updateMotion(page);
+    updateMotion(page, location.hash);
     return;
   }
   $('#main').innerHTML = `
     <section class="mission-bar">
-      <div><span class="eyebrow">Your crew health workspace</span><h1>${page === 'dashboard' ? 'Health dashboard' : page === 'log' ? 'Activity log' : 'Astronaut profile & data'}</h1><p>${escape(data.personal?.name || 'Crew member')} ${escape(data.personal?.astronautId || 'A-07')} <span class="separator">/</span> Day ${data?.day ?? profile().day} <span class="separator">/</span> ${escape(data?.phase ?? profile().phase)}</p></div>
+      <div><span class="eyebrow">Your crew health workspace</span><h1>${page === 'dashboard' ? escape(data.personal?.name || 'Crew member ' + (data.astronautId || 'A-07')) : page === 'log' ? 'Activity log' : 'Astronaut profile & data'}</h1><p>${escape(data.personal?.name || 'Crew member')} ${escape(data.personal?.astronautId || 'A-07')} <span class="separator">/</span> Day ${data?.day ?? profile().day} <span class="separator">/</span> ${escape(data?.phase ?? profile().phase)}</p></div>
       <div class="mission-controls"><label class="small">Profile <select id="astronaut-profile">${Object.entries(state).filter(([, data]) => Array.isArray(data?.records)).map(([key, data]) => '<option value="' + key + '" ' + (key === profileKey ? 'selected' : '') + '>' + escape(data.label || (key === 'demo' ? 'Simulated mission' : 'Manual entries')) + '</option>').join('')}</select></label><span class="connection"><i></i>${navigator.onLine ? 'Local workspace' : 'Offline'}</span><span class="small muted">${storageReady ? 'Stored on this device' : 'Storage unavailable'}</span></div>
     </section>
     <div class="workspace-note"><span>${escape((data.missionId ? data.missionId + ' · ' + data.astronautId : data.label) || (profileKey === 'demo' ? 'Simulated mission data' : 'Manual entries'))} · ${data.records.length} recorded entries</span></div>
     ${page === 'dashboard' ? dashboard(data) : page === 'log' ? logPage(data) : personalPage(data)}
   `;
   bindDashboard();
-  updateMotion(page);
+  updateMotion(page, location.hash);
 }
 
 function landingPage(data) {
@@ -241,8 +242,8 @@ function findingGauge(range) {
 }
 function findingCard(finding, data) {
   const gauge = findingGauge(finding.range);
-  const status = gauge || '<p class="queue-status">' + escape(finding.value) + '</p>';
-  return '<article class="alert ' + (finding.urgent ? 'urgent' : 'watch') + ' reading-finding" data-locate="' + escape(finding.system) + '" tabindex="0" aria-label="' + escape(finding.label) + '; select to locate body system"><h3>' + (finding.urgent ? 'Act now: ' : '') + escape(finding.label) + '</h3>' + status + '<button data-finding="' + escape(finding.id) + '" class="wide">Open procedure</button></article>';
+  const status = '<p class="concern-value">' + escape(finding.value) + ' <small>' + escape(finding.unit || metrics[finding.key]?.unit || '') + '</small></p><p class="small muted">Demo reference · ' + escape(finding.reference) + '</p>' + (gauge ? '<details class="concern-detail"><summary>Range details</summary>' + gauge + '</details>' : '');
+  return '<article class="alert ' + (finding.urgent ? 'urgent' : 'watch') + ' reading-finding" data-locate="' + escape(finding.system) + '" tabindex="0" aria-label="' + escape(finding.label) + '; select to inspect evidence"><h3>' + (finding.urgent ? 'Act now: ' : '') + escape(finding.label) + '</h3>' + status + '<button data-finding="' + escape(finding.id) + '" class="wide">Review concern</button></article>';
 }
 
 function bodyMarkers(data) {
@@ -252,14 +253,8 @@ function bodyMarkers(data) {
     if (!reports.length && !findings.length) return '';
     const urgent = reports.some(event => event.urgent);
     const label = (urgent ? 'Urgent' : 'Review') + ' · ' + system.label;
-    const panelId = 'body-conditions-' + system.id;
-    const below = ['head', 'eyes', 'sleep'].includes(system.id);
-    return '<div slot="hotspot-' + system.id + '" class="body-pin ' + (below ? 'below' : '') + '" data-position="' + regionPositions[system.id] + '">' +
-      '<button class="bone-marker ' + (urgent ? 'pin-urgent' : 'pin-review') + '" data-body-alert="' + system.id + '" aria-label="' + label + '" aria-expanded="false" aria-controls="' + panelId + '"><span aria-hidden="true"></span></button>' +
-      '<div class="body-callout" id="' + panelId + '" role="region" aria-label="' + system.label + ' conditions" hidden><strong>' + escape(system.label) + '</strong>' +
-      reports.map(event => '<p><b>' + (event.urgent ? 'Urgent' : 'Review') + '</b> · ' + escape(event.text) + '</p>').join('') +
-      findings.map(finding => '<p>' + escape(finding.label) + '<br><b>' + escape(finding.value) + ' ' + (finding.unit || metrics[finding.key]?.unit || '') + '</b><br><small>Demo reference · ' + escape(finding.reference) + '</small></p>').join('') +
-      '</div></div>';
+    return '<div slot="hotspot-' + system.id + '" class="body-pin" data-position="' + regionPositions[system.id] + '">' +
+      '<button class="bone-marker ' + (urgent ? 'pin-urgent' : 'pin-review') + '" data-body-alert="' + system.id + '" aria-label="' + label + '"><span aria-hidden="true"></span></button></div>';
   }).join('');
 }
 
@@ -271,21 +266,49 @@ const readingIcons = {
   mood: '<circle cx="12" cy="12" r="9"/><path d="M8 14a4 4 0 0 0 8 0M8 9h.01M16 9h.01"/>',
   glucose: '<path d="M12 2s-7 8-7 13a7 7 0 0 0 14 0c0-5-7-13-7-13Z"/><path d="M9 16h6M12 13v6"/>'
 };
+function healthNavigation(active = '') {
+  const links = [['', '♡ Summary'], ['categories', 'Health categories'], ['anatomy', '◎ Anatomy']];
+  return '<aside class="health-sidebar" aria-label="Health navigation"><a href="#home" class="sidebar-brand">Crew Health</a>' + links.map(([id,label]) => '<a href="#dashboard' + (id ? '/' + id : '') + '" ' + ((id === active || id === 'categories' && systems.some(item => item.id === active)) ? 'aria-current="page"' : '') + '>' + label + '</a>').join('') + '<a href="#profile">＋ Add health data</a><a href="#log">↗ Activity log</a></aside>';
+}
+function summaryDashboard(data) {
+  const keys = ['pulse', 'sleep', 'systolic', 'mood', 'temperature', 'glucose'];
+  const categoryFor = key => systems.find(item => item.keys.includes(key))?.id || 'heart';
+  return healthNavigation() + '<section class="summary-section"><div class="summary-heading"><h2>Needs attention</h2><span>Fictional demo</span></div>' + attention(data) + '</section>' +
+    '<section class="summary-section"><div class="summary-heading"><h2>Pinned</h2><a href="#profile">Add data</a></div><div class="pinned-grid">' + keys.map(key => {
+      const record = latest(data.records, key);
+      return '<a class="health-tile tile-' + key + '" href="#dashboard/' + categoryFor(key) + '"><div class="tile-heading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">' + readingIcons[key] + '</svg><span>' + (key === 'systolic' ? 'Blood pressure' : metrics[key]?.label || 'Mood') + '</span><span class="tile-chevron" aria-hidden="true">›</span></div><p class="tile-caption">' + (record ? utc(record.time) : 'No observation recorded') + '</p><strong>' + (key === 'systolic' && record ? escape(record.values.systolic) + '/' + escape(record.values.diastolic ?? '—') + ' <small>mmHg</small>' : valueOf(data, key)) + '</strong></a>';
+    }).join('') + '</div></section>' +
+    '<section class="summary-section"><div class="summary-heading"><h2>Trends</h2><span>7 days</span></div><div class="summary-trends">' + ['pulse','sleep'].map(key => '<a class="trend-tile" href="#dashboard/' + categoryFor(key) + '"><h3>' + metrics[key].label + '</h3>' + trendChart(data, key) + '</a>').join('') + '</div></section>' +
+    '<nav class="mobile-health-nav" aria-label="Workspace"><a href="#dashboard" aria-current="page">♡ Summary</a><a href="#dashboard/categories">Categories</a><a href="#profile">Add data</a></nav>';
+}
+
 function dashboard(data) {
-  const pendingCount = allFindings(data).filter(item => (!item.missionFinding || item.healthConcern) && !item.review).length;
+  const category = location.hash.split('/')[1];
+  if (!category) return summaryDashboard(data);
+  if (systems.some(item => item.id === category)) selected = category;
   const system = systems.find(item => item.id === selected);
   const context = systemContext(system.id, data);
-  return `
-    <section class="review-strip"><div><strong>${pendingCount} reading${pendingCount === 1 ? '' : 's'} to review</strong><span>Latest available observations · Demo rules v1</span><details class="rule-reference"><summary>View alert thresholds</summary><p>Fictional demo references, inclusive boundaries. Outside these ranges prompts review.</p><ul>${Object.entries(demoRules).map(([key, rule]) => '<li>' + (metrics[key]?.label || 'Mood') + ' · ' + (key === 'mood' ? 'Low or Very low' : (key === 'sleep' ? (data.baseline?.low ?? rule.low) + '–' + (data.baseline?.high ?? rule.high) : rule.low + '–' + rule.high) + ' ' + metrics[key].unit) + '</li>').join('')}</ul></details></div><div class="input-actions"><button data-open-log>Log</button><button id="quick-checkin" class="primary">＋ Record check-in</button></div></section>
-    <section class="panel latest"><div class="panel-heading"><h2>Latest readings</h2><button id="open-data-latest">Open data input</button></div>
-      <div class="metric-strip">${['pulse', 'systolic', 'temperature', 'sleep', 'mood', 'glucose'].map(key => '<button class="metric ' + (readingFindings(data).some(finding => finding.key === key || key === 'systolic' && finding.key === 'diastolic') ? 'metric-watch' : latest(data.records, key) ? 'metric-normal' : '') + '" data-metric="' + key + '"><svg class="metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + readingIcons[key] + '</svg><span>' + (key === 'systolic' ? 'Blood pressure' : metrics[key]?.label || 'Mood') + '</span><strong>' + (key === 'systolic' && latest(data.records, key) ? escape(latest(data.records, key).values.systolic) + '/' + escape(latest(data.records, key).values.diastolic ?? '—') + ' <small>mmHg</small>' : valueOf(data, key)) + '</strong></button>').join('')}</div>
-    </section>
-    <div class="dashboard">
-      <section class="panel attention"><div class="panel-heading"><h2>Attention queue</h2></div>${attention(data)}</section>
-      <section class="panel anatomy"><div class="panel-heading"><h2>Body systems</h2><button id="flip" class="subtle">${back ? 'Back' : 'Front'} ⇄</button></div>
+  if (category === 'categories' || !systems.some(item => item.id === category) && category !== 'anatomy') return healthNavigation('categories') + '<a class="health-back" href="#dashboard">← Back to Summary</a><section class="summary-section"><div class="summary-heading"><h2>Health categories</h2></div><div class="categories-layout"><div class="category-browser">' + systems.map(item => '<a href="#dashboard/' + item.id + '"><span class="category-icon icon-' + item.id + '" aria-hidden="true">' + ({heart:'♥',eyes:'◉',head:'◌',lungs:'♧',abdomen:'✦',kidneys:'◒',spine:'╋',limbs:'↗',skin:'✚',sleep:'☾',exposure:'☀',operations:'⌂'}[item.id] || '✚') + '</span><span class="category-name">' + item.label + '</span><span class="category-chevron" aria-hidden="true">›</span></a>').join('') + '</div><aside class="category-overview"><span class="overview-heart" aria-hidden="true">♡</span><h3>Your health, in context</h3><p>Explore readings, reports and source records by body system.</p><dl><div><dt>Observation entries</dt><dd>' + data.records.length + '</dd></div><div><dt>Open crew reports</dt><dd>' + visibleEvents(data).length + '</dd></div></dl><a class="button-link" href="#dashboard/anatomy">Explore anatomy →</a><a href="#profile">Add observations</a><p class="small muted">Stored on this device · Fictional demo</p></aside></div></section>';
+  const evidence = `      <section class="panel evidence"><div class="system-picker"><label for="system-select">Body system</label><select id="system-select">${systems.map(item => '<option value="' + item.id + '" ' + (item.id === selected ? 'selected' : '') + '>' + item.label + '</option>').join('')}</select></div>
+        <div class="evidence-body">${visibleEvents(data, system.id).map(event => `<div class="region-event"><strong>${event.urgent ? 'Urgent' : 'Review'} · ${escape(event.text)}</strong><p>${utc(event.time)} · Crew report</p><button data-event="${escape(event.id)}">Open event & record action</button></div>`).join('')}${system.keys.length ? system.keys.map(key => {
+          const record = latest(data.records, key);
+          const finding = allFindings(data).find(item => item.key === key);
+          return '<section class="observation-card"><div class="reading"><span>' + (metrics[key]?.label || 'Mood') + '</span><strong>' + valueOf(data, key) + '</strong></div>' +
+            (finding ? '<button class="reading-badge" data-finding="' + finding.id + '">' + (finding.review ? 'Reviewed' : 'Review reading') + '</button>' : '') +
+            (record ? '<div class="observation-time"><span class="time-label">Observed</span><time datetime="' + escape(record.time) + '">' + utc(record.time).replace(' UTC', '') + '</time><span class="timezone-badge">UTC</span></div>' : '<p class="small muted">No observation recorded</p>') + (record ? '<details class="reading-detail"><summary>View trend & source</summary>' + trendChart(data, key) + sourceDetails(record) + '</details>' : '') + '</section>';
+        }).join('') : ''}
+        ${systemMeasurementPanel(data, selected)}<details class="system-about"><summary>About this system</summary><p class="evidence-explanation">${system.evidence}</p></details>
+        <details><summary>Associated research risks</summary><ul>${system.risks.map(risk => '<li>' + risk + '</li>').join('')}</ul><a href="${sources[1][1]}" target="_blank" rel="noreferrer">NASA risk reference ↗</a></details>
+        <button id="history" class="wide">View observations & trends</button>
+        <button id="report" class="subtle wide">＋ Record symptom or event</button>
+    </div>
+        ${context ? '<div class="exposure">' + context + '</div>' : ''}
+      </section>`;
+  const anatomy = `
+          <section class="panel anatomy"><div class="panel-heading"><h2>Body systems</h2><button id="flip" class="subtle">${back ? 'Back' : 'Front'} ⇄</button></div>
         <div class="skeleton-stage">
-          <details class="layer-settings"><summary>Visible layers & opacity</summary>
-            <fieldset><legend>Body layers</legend>${layers.map(layer => `<div class="layer-row"><label><input type="checkbox" data-layer="${layer.id}" ${layer.visible ? 'checked' : ''}> ${layer.label}</label><input type="range" min="1" max="100" value="${layer.opacity}" data-opacity="${layer.id}" aria-label="${layer.label} opacity" ${layer.visible ? '' : 'disabled'}><output>${layer.opacity}%</output></div>`).join('')}</fieldset><button id="reset-layers" class="subtle wide" type="button">Reset to default</button>
+          <details class="layer-settings" open><summary>Layers & visibility</summary>
+            <fieldset><legend>Show layers · Adjust opacity</legend>${layers.map(layer => `<div class="layer-row"><label><input type="checkbox" data-layer="${layer.id}" ${layer.visible ? 'checked' : ''}> ${layer.label}</label><input type="range" min="1" max="100" value="${layer.opacity}" data-opacity="${layer.id}" aria-label="${layer.label} opacity" ${layer.visible ? '' : 'disabled'}><output>${layer.opacity}%</output></div>`).join('')}</fieldset><button id="reset-layers" class="subtle wide" type="button">Reset to default</button>
           </details>
           <model-viewer id="body-model" src="assets/anatomy.glb" alt="Interactive layered human anatomy. Drag to rotate. Zoom is disabled. Use the system list for health evidence."
             camera-controls touch-action="pan-y" camera-orbit="${back ? '180' : '0'}deg 90deg 105%" min-camera-orbit="auto 15deg 40%" max-camera-orbit="auto 165deg 180%" shadow-intensity="0.5" exposure="1.2" interaction-prompt="none" disable-pan disable-zoom>
@@ -294,25 +317,8 @@ function dashboard(data) {
           <p id="model-status" class="visually-hidden" role="status">Loading 3D anatomy…</p>
           <p class="small muted">Drag to rotate · Fixed zoom</p>
         </div>
-      </section>
-      <section class="panel evidence"><details class="system-menu"><summary><span>Review body system</span><strong role="heading" aria-level="2">${system.label}</strong></summary><div class="system-list" aria-label="Body system selection">${systems.map(item => '<button data-system="' + item.id + '" aria-pressed="' + (item.id === selected) + '">' + item.label + '</button>').join('')}</div></details>
-        <div class="evidence-body">${visibleEvents(data, system.id).map(event => `<div class="region-event"><strong>${event.urgent ? 'Urgent' : 'Review'} · ${escape(event.text)}</strong><p>${utc(event.time)} · Crew report</p><button data-event="${escape(event.id)}">Open event & record action</button></div>`).join('')}${system.keys.length ? system.keys.map(key => {
-          const record = latest(data.records, key);
-          const finding = allFindings(data).find(item => item.key === key);
-          return '<div class="reading"><span>' + (metrics[key]?.label || 'Mood') + '</span><strong>' + valueOf(data, key) + '</strong></div>' +
-            (finding ? '<button class="reading-badge" data-finding="' + finding.id + '">' + (finding.review ? 'Reviewed' : 'Review reading') + '</button>' : '') +
-            (record ? '<p class="small muted">' + utc(record.time) + '</p>' : '') + trendChart(data, key) + (record ? sourceDetails(record) : '');
-        }).join('') : ''}
-        ${systemMeasurementPanel(data, selected)}<p class="evidence-explanation">${system.evidence}</p>
-        <details><summary>Associated research risks</summary><ul>${system.risks.map(risk => '<li>' + risk + '</li>').join('')}</ul><a href="${sources[1][1]}" target="_blank" rel="noreferrer">NASA risk reference ↗</a></details>
-        <button id="history" class="wide">View observations & trends</button>
-        <button id="report" class="subtle wide">＋ Record symptom or event</button>
-        </div>
-        ${context ? '<div class="exposure">' + context + '</div>' : ''}
-      </section>
-    </div>
-
-`;
+      </section>`;
+  return healthNavigation(category) + '<a class="health-back" href="#dashboard/' + (category === 'anatomy' ? '' : 'categories') + '">← Back to ' + (category === 'anatomy' ? 'Summary' : 'Health categories') + '</a><div class="summary-heading"><h2>' + (category === 'anatomy' ? 'Anatomy' : system.label) + '</h2></div>' + (category === 'anatomy' ? anatomy : evidence);
 
 }
 function personalPage(data) {
@@ -364,8 +370,8 @@ async function savePersonal(event) {
 function attention(data) {
   const events = visibleEvents(data);
   const findings = allFindings(data).filter(item => !item.missionFinding || item.healthConcern);
-  return '<div class="attention-content">' + findings.map(finding => findingCard(finding, data)).join('') +
-    events.map(event => '<article class="alert ' + (event.urgent ? 'urgent' : 'watch') + '"><h3>' + (event.urgent ? 'Act now: ' : '') + escape(event.text) + '</h3><p class="queue-status">' + (event.acknowledged ? 'Crew report acknowledged; review remains open' : 'Crew report awaiting review') + '</p><button data-event="' + escape(event.id) + '" class="wide">Open procedure</button></article>').join('') +
+  return '<div class="attention-content">' + events.filter(event => event.urgent).map(event => '<article class="alert urgent"><h3>Act now: ' + escape(event.text) + '</h3><div class="review-status"><span class="review-status-icon" aria-hidden="true">♥</span><div><strong>' + (event.acknowledged ? 'Acknowledged' : 'Awaiting review') + '</strong><p>Crew report · ' + utc(event.time) + '</p></div></div><div class="review-track" aria-hidden="true"><span class="complete"></span><span class="' + (event.acknowledged ? 'complete' : '') + '"></span></div><div class="review-track-labels"><span>Reported</span><span>' + (event.acknowledged ? 'Acknowledged' : 'Review pending') + '</span></div><button data-event="' + escape(event.id) + '" class="wide">Review concern</button></article>').join('') + findings.map(finding => findingCard(finding, data)).join('') +
+    events.filter(event => !event.urgent).map(event => '<article class="alert ' + (event.urgent ? 'urgent' : 'watch') + '"><h3>' + (event.urgent ? 'Act now: ' : '') + escape(event.text) + '</h3><p class="queue-status">' + (event.acknowledged ? 'Crew report acknowledged; review remains open' : 'Crew report awaiting review') + '</p><button data-event="' + escape(event.id) + '" class="wide">Review concern</button></article>').join('') +
     (!events.length && !findings.length ? '<div class="quiet"><h3>No flagged health concerns</h3></div>' : '') + '</div>';
 }
 
@@ -425,23 +431,22 @@ function bindDashboard() {
   if ($('#mission')) $('#mission').onclick = missionSettings;
   if ($('#open-data-latest')) $('#open-data-latest').onclick = () => { location.hash = 'profile'; };
   if ($('#personal-form')) $('#personal-form').onsubmit = savePersonal;
-  document.querySelectorAll('[data-system]').forEach(button => button.onclick = () => { selected = button.dataset.system; render(); });
+  if ($('#system-select')) $('#system-select').onchange = event => { location.hash = 'dashboard/' + event.target.value; };
+  document.querySelectorAll('[data-system]').forEach(button => button.onclick = () => { selected = button.dataset.system; render(); document.querySelector('.evidence').open = true; });
   document.querySelectorAll('[data-body-alert]').forEach(button => button.onclick = () => {
-    const panel = document.getElementById(button.getAttribute('aria-controls'));
-    const open = panel.hidden;
-    document.querySelectorAll('.body-callout').forEach(item => { item.hidden = true; });
-    document.querySelectorAll('[data-body-alert]').forEach(item => {
-      item.setAttribute('aria-expanded', 'false');
-      item.parentElement.classList.remove('expanded');
-    });
-    panel.hidden = !open;
-    button.setAttribute('aria-expanded', String(open));
-    button.parentElement.classList.toggle('expanded', open);
+    const data = profile();
+    const system = systems.find(item => item.id === button.dataset.bodyAlert);
+    const findings = allFindings(data).filter(item => item.system === system.id && (!item.missionFinding || item.healthConcern));
+    const events = visibleEvents(data, system.id);
+    modal(system.label,
+      '<div class="system-review">' + findings.map(item => '<article class="system-concern"><h3>' + escape(item.label) + '</h3><p class="system-value">' + escape(item.value) + ' <small>' + escape(item.unit || metrics[item.key]?.unit || '') + '</small></p><p class="small muted">Demo reference · ' + escape(item.reference) + '</p><button class="primary" data-system-finding="' + escape(item.id) + '">Review concern</button></article>').join('') +
+      events.map(item => '<article class="system-concern"><h3>' + escape(item.text) + '</h3><p class="small muted">' + utc(item.time) + '</p><button data-system-event="' + escape(item.id) + '">Review report</button></article>').join('') + '</div>');
+    document.querySelectorAll('[data-system-finding]').forEach(item => item.onclick = () => { $('#dialog').close(); findingDialog(item.dataset.systemFinding); });
+    document.querySelectorAll('[data-system-event]').forEach(item => item.onclick = () => { $('#dialog').close(); eventDialog(item.dataset.systemEvent); });
   });
   document.querySelectorAll('[data-locate]').forEach(card => {
     const locate = () => {
-      selected = card.dataset.locate;
-      render();
+      location.hash = 'dashboard/' + card.dataset.locate;
     };
     card.onclick = event => { if (!event.target.closest('button, a, details')) locate(); };
     card.onkeydown = event => {
@@ -995,8 +1000,8 @@ $('#dialog-body').addEventListener('click', event => { if (event.target.id === '
 $('#sources').onclick = () => modal('Research & scope', '<p>Based on the supplied challenge brief and agency resources. All 17 NASA risk categories have a destination in the system list. Specialized exams display their availability; this prototype does not infer a disease from routine vitals.</p><ul class="source-list">' + sources.map(([label, url]) => '<li><a target="_blank" rel="noreferrer" href="' + url + '">' + label + ' ↗</a></li>').join('') + '</ul><p class="small muted"><a href="assets/anatomy-ATTRIBUTION.md" target="_blank">BodyParts3D © DBCLS · Adapted by Open Anatomy 3D</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a><br>Layer colors and visibility modified · Male reference anatomy</p><p>The sleep comparison uses an explicitly fictional preflight reference. Real crew records require appropriate access controls and mission-approved protocols.</p>');
 document.querySelectorAll('[data-page]').forEach(button => button.onclick = () => { location.hash = button.dataset.page; });
 window.addEventListener('hashchange', () => {
-  if (!['', '#home', '#home-workflows', '#home-scope', '#dashboard', '#profile', '#log'].includes(location.hash)) return;
-  page = ['#dashboard', '#profile', '#log'].includes(location.hash) ? location.hash.slice(1) : 'home';
+  if (!location.hash.startsWith('#dashboard') && !['', '#home', '#home-workflows', '#home-scope', '#profile', '#log'].includes(location.hash)) return;
+  page = location.hash.startsWith('#dashboard') ? 'dashboard' : ['#profile', '#log'].includes(location.hash) ? location.hash.slice(1) : 'home';
   render();
   $('#main').focus({ preventScroll: true });
   requestAnimationFrame(() => {
