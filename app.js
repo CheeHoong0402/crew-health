@@ -274,6 +274,7 @@ const readingIcons = {
 function dashboard(data) {
   const pendingCount = allFindings(data).filter(item => (!item.missionFinding || item.healthConcern) && !item.review).length;
   const system = systems.find(item => item.id === selected);
+  const context = systemContext(system.id, data);
   return `
     <section class="review-strip"><div><strong>${pendingCount} reading${pendingCount === 1 ? '' : 's'} to review</strong><span>Latest available observations · Demo rules v1</span><details class="rule-reference"><summary>View alert thresholds</summary><p>Fictional demo references, inclusive boundaries. Outside these ranges prompts review.</p><ul>${Object.entries(demoRules).map(([key, rule]) => '<li>' + (metrics[key]?.label || 'Mood') + ' · ' + (key === 'mood' ? 'Low or Very low' : (key === 'sleep' ? (data.baseline?.low ?? rule.low) + '–' + (data.baseline?.high ?? rule.high) : rule.low + '–' + rule.high) + ' ' + metrics[key].unit) + '</li>').join('')}</ul></details></div><div class="input-actions"><button data-open-log>Log</button><button id="quick-checkin" class="primary">＋ Record check-in</button></div></section>
     <section class="panel latest"><div class="panel-heading"><h2>Latest readings</h2><button id="open-data-latest">Open data input</button></div>
@@ -307,7 +308,7 @@ function dashboard(data) {
         <button id="history" class="wide">View observations & trends</button>
         <button id="report" class="subtle wide">＋ Record symptom or event</button>
         </div>
-        <div class="exposure">${systemContext(system.id, data)}${missionStatus(data)}</div>
+        ${context ? '<div class="exposure">' + context + '</div>' : ''}
       </section>
     </div>
 
