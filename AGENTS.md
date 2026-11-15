@@ -120,6 +120,10 @@ For more detail use the [Five Hazards Implementation Plan](./Five%20Hazards%20Im
 
 ## Shipped integrated demo
 
+The dashboard server starts the local AETHER service when the project Python environment is installed.
+
+Finding dialogs offer optional checklist search through the loopback AETHER demo server on port 8000 (`POST /ask`). Send only the search phrase. Display local versioned demo guidance and keep the manual checklist menu available offline. Search does not evaluate telemetry or change alert severity.
+
 `mission-demo.js` owns current source revisions, 17-area coverage, dose reconciliation, sleep opportunity, gravity timing, cabin episodes/freshness, tasks/actions and selective handoff. Data entry groups ordinary record types rather than the five hazards; hazard evaluation remains in the dashboard logic. `demo-editor.js` edits every field of the complete artificial fixture without a new dependency. Both manual and combined CSV paths serialize, validate, stage and commit using the same parser/importer. The 142-row example fills seven-day routine trends and all 12 system panels for A-07. A-08 remains a deliberate partial profile for shared cabin verification.
 
 The dashboard uses overlapping local Open Anatomy 3D layers with colored circles and inline callouts. Preserve the keyboard-accessible system list. BodyParts3D © DBCLS, adapted by Open Anatomy 3D, CC BY 4.0; see assets/anatomy-ATTRIBUTION.md. The model is an educational reference with limited nerve coverage, not a patient scan.

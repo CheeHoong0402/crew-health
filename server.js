@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,4 +16,19 @@ http.createServer(async (request, response) => {
     response.writeHead(200, { 'Content-Type': types[path.extname(filename)], 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
     response.end(content);
   } catch { response.writeHead(404).end('Not found'); }
-}).listen(4173, '127.0.0.1', () => console.log('Crew Health is running at http://localhost:4173'));
+}).listen(4173, '127.0.0.1', async () => {
+  console.log('Crew Health is running at http://localhost:4173');
+  const python = path.join(root, '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
+  if (!existsSync(python)) return;
+  try {
+    const health = await fetch('http://127.0.0.1:8000/health', { signal: AbortSignal.timeout(2000) });
+    if (health.ok && 'rag_text_clf' in await health.json()) return;
+  } catch { /* Start the local service when the health check cannot reach it. */ }
+  const service = spawn(python, ['scripts/demo_server.py', '.', '8000', '127.0.0.1'], {
+    cwd: root, stdio: 'inherit', windowsHide: true
+  });
+  service.on('error', error => console.error('AETHER startup failed:', error.message));
+  process.on('exit', () => service.kill());
+  process.once('SIGINT', () => process.exit());
+  process.once('SIGTERM', () => process.exit());
+});

@@ -81,6 +81,16 @@ Advanced legacy files with explicit acquisition metadata remain readable for com
 
 ## Dashboard and action workflows
 
+From a reading or mission finding, open **Review & record action → Find guidance**. Search by topic, open the suggested demo checklist, then record the action in the same dialog. The search sends only the entered phrase to the local AETHER demo server. When the server is unavailable, choose a cached checklist directly. For offline tablets the Python service must run on the same device for model search to work.
+
+To enable search on Windows, set up the Python environment once using the first two commands. Then run `npm start` from the repository root whenever you use the dashboard. It starts the local AETHER service if needed. Allow the models to load before searching. The scikit-learn version matches the saved classifier.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install scikit-learn==1.9.1 pillow jsonschema
+npm start
+```
+
 The dashboard integrates warnings with body systems, inline anatomy circles, the attention queue and right-hand readings/trends. Use the system list when WebGL is unavailable. The separate **Log** page retains original observations, corrections, imported evidence and recorded actions.
 
 - **Radiation:** non-overlapping compatible dose segments, continuous-counter differences, interval-average rate integration, spacewalk coverage and recorded mission total. Faults, unverified instrument status and overlaps do not count. The sample spacewalk gives 24 uSv over 120 minutes; removing RAD-GAP-FILL leaves 16 uSv and 80 minutes missing.

@@ -678,6 +678,79 @@ function findingDialog(id) {
     $('#dialog').close();
     sleepFollowup();
   };
+  bindGuidanceSearch(finding);
+}
+
+const guidanceTopics = [
+  ['Sleep and wellbeing', ['PROTO-MIND-01'], 'Compare sleep with the time available for rest. If both were short, review the duty schedule. If more time was available, record interruptions. If opportunity is unknown, ask about it before choosing a follow-up.'],
+  ['Blood pressure and pulse', ['PROTO-CV-01'], 'Check posture, activity and cuff context for both readings before comparing them. Record the repeat observation and any reported symptoms.'],
+  ['Glucose and temperature', ['PROTO-MET-01'], 'For glucose, check the unit and timing relative to meals. For temperature, check the measurement method. Link any repeat reading to the original.'],
+  ['Mission & habitat', ['PROTO-ECLSS-01'], 'For cabin CO₂, pressure or temperature, check the compartment, sensor, unit and observation time. Check the interval log for gaps before treating a single reading as a sustained change. If the log is stale, request a current reading. For a mission task or handoff, confirm the responsible crew member, next check time in UTC and any outstanding acknowledgment.'],
+  ['Radiation exposure', ['PROTO-RAD-02', 'PROTO-SPE-01'], 'Check the dosimeter assignment and the interval it covers. Record gaps and request the missing log before updating the exposure total.'],
+  ['Balance, bones and exercise', ['PROTO-BONE-02', 'PROTO-SUIT-01'], 'Record the activity and time of the observation. Link a symptom to the relevant event and compare measured exams under the same conditions.'],
+  ['Vision changes', ['PROTO-SANS-01'], 'Record when the change was noticed and the most recent measured eye exam. Assign the next review to a crew member.']
+];
+
+function bindGuidanceSearch(finding) {
+  const panel = document.createElement('details');
+  panel.className = 'guidance';
+  panel.innerHTML = '<summary>Find guidance</summary><form><label>Search onboard demo checklists<input name="question" required maxlength="200" placeholder="e.g. interrupted sleep"></label><button type="submit">Search with AETHER</button></form><p role="status"></p><div></div>';
+  $('#dialog-body .guidance').after(panel);
+  const form = panel.querySelector('form');
+  const status = panel.querySelector('[role=status]');
+  const choices = panel.lastElementChild;
+  form.elements.question.value = finding.restricted ? '' : (systems.find(system => system.id === finding.system)?.label || '');
+  function show(topics) {
+    choices.replaceChildren();
+    for (const [title, , instructions] of topics) {
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      summary.textContent = title;
+      const body = document.createElement('p');
+      body.textContent = instructions;
+      details.append(summary, body);
+      details.open = topics.length === 1;
+      choices.append(details);
+    }
+  }
+  show(guidanceTopics);
+  form.onsubmit = async event => {
+    event.preventDefault();
+    const question = form.elements.question.value.trim();
+    if (!question) return;
+    const normalize = text => text.toLowerCase().replace(/&/g, ' and ').replace(/\s+/g, ' ').trim();
+    const namedTopic = guidanceTopics.find(([title]) => normalize(title) === normalize(question));
+    if (namedTopic) {
+      show([namedTopic]);
+      status.textContent = 'Onboard checklist · Demo v1';
+      return;
+    }
+    const button = form.querySelector('button');
+    button.disabled = true;
+    status.textContent = 'Searching local AETHER…';
+    try {
+      const response = await fetch('http://127.0.0.1:8000/ask', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit',
+        body: JSON.stringify({ question }), signal: AbortSignal.timeout(5000)
+      });
+      if (!response.ok) throw Error();
+      const result = await response.json();
+      const topic = guidanceTopics.find(([, ids]) => ids.includes(result.protocol_id));
+      if (/^(?:pressure|pressure review)\??$/i.test(question)) {
+        show([guidanceTopics[1], guidanceTopics[3]]);
+        status.textContent = 'Which pressure do you mean? Choose a demo checklist.';
+      } else if (!topic || typeof result.confidence !== 'number' || result.confidence < 0.35 || result.note) {
+        show(guidanceTopics);
+        status.textContent = 'No clear checklist match. Choose an onboard demo checklist.';
+      } else {
+        show([topic]);
+        status.textContent = 'Suggested by AETHER · Demo checklist v1';
+      }
+    } catch {
+      show(guidanceTopics);
+      status.textContent = 'AETHER is unavailable. Choose an onboard demo checklist.';
+    } finally { button.disabled = false; }
+  };
 }
 function eventDialog(id) {
   const event = profile().events.find(item => item.id === id);
@@ -798,6 +871,7 @@ function missionFindingDialog(finding) {
       });
       toast('Mission action saved locally.');
     });
+  bindGuidanceSearch(finding);
 }
 function supportRequest() {
   modal('Request a crew check-in', '<form><label>Recipient<input name="recipient" value="A-08" required maxlength="100"></label><label>Private support note<textarea name="note" required maxlength="1000"></textarea></label>' + formEnd('Save support request'), async fields => {
