@@ -156,12 +156,24 @@ function landingPage(data) {
 
 function uiIcon(name) {
   const paths = {
+    layers: '<path d="m12 3 10 5-10 5L2 8l10-5Zm-10 9 10 5 10-5M2 16l10 5 10-5"/>',
     input: '<path d="M8 3h8l4 4v14H4V3h4m8 0v5h5M8 13h8m-8 4h5"/>',
     heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/><path d="M3 12h5l2-4 4 8 2-4h5"/>',
+    eyes: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+    head: '<path d="M9 21v-4H6v-5H3l3-5a7 7 0 1 1 12 8v6M10 7h5m-5 3h5"/>',
+    lungs: '<path d="M12 3v8m0-4-3 4m3-4 3 4M9 7C5 7 2 13 3 19c3 2 6-1 6-5V7Zm6 0c4 0 7 6 6 12-3 2-6-1-6-5V7Z"/>',
+    abdomen: '<path d="M10 3v5c-3-1-6 1-6 5 0 5 5 8 10 7 5-1 7-7 5-11-1-2-3-3-5-2V3"/>',
+    kidneys: '<path d="M8 4C3 4 1 12 4 16c3 3 6 0 5-3-3-1-3-4-1-6V4Zm8 0c5 0 7 8 4 12-3 3-6 0-5-3 3-1 3-4 1-6V4ZM9 15l2 6m4-6-2 6"/>',
+    spine: '<path d="M9 3h6v4H9zM8 10h8v4H8zM9 17h6v4H9zM12 7v3m0 4v3M5 5h4m6 0h4M4 12h4m8 0h4M5 19h4m6 0h4"/>',
+    limbs: '<path d="m6 3-3 3 3 3 3-3-3-3Zm12 12-3 3 3 3 3-3-3-3ZM8 8l8 8M3 3l6 6m6 6 6 6"/>',
+    skin: '<path d="M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6l-9-4Z"/><path d="M8 12h8m-4-4v8"/>',
+    sleep: '<path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/>',
+    exposure: '<circle cx="12" cy="12" r="2"/><path d="m10 8-3-5a10 10 0 0 0-5 9h6m6-4 3-5a10 10 0 0 1 5 9h-6m-6 4-3 5a10 10 0 0 0 10 0l-3-5"/>',
+    operations: '<path d="m3 10 9-7 9 7v11H3V10Z"/><path d="M8 21v-7h8v7M8 10h8"/>',
     trend: '<path d="M3 3v18h18M6 16l5-6 4 3 6-8m-5 0h5v5"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>'
   };
-  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + paths[name] + '</svg>';
+  return '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + paths[name] + '</svg>';
 }
 
 
@@ -239,27 +251,21 @@ function findingGauge(range) {
     '<text class="gauge-tick" x="32" y="133" text-anchor="middle">' + number(scale.min) + '</text><text class="gauge-tick" x="208" y="133" text-anchor="middle">' + number(scale.max) + '</text></svg>' +
     '<figcaption><strong>' + escape(label) + '</strong><span>' + escape(reference + ' ' + unit) + '</span><span class="gauge-deviation">' + escape(deviation) + '</span></figcaption></figure>';
 }
-function findingCard(finding, data) {
+function findingCard(finding, data, locate = true) {
   const gauge = findingGauge(finding.range);
   const status = gauge || '<p class="queue-status">' + escape(finding.value) + '</p>';
-  return '<article class="alert ' + (finding.urgent ? 'urgent' : 'watch') + ' reading-finding" data-locate="' + escape(finding.system) + '" tabindex="0" aria-label="' + escape(finding.label) + '; select to locate body system"><h3>' + (finding.urgent ? 'Act now: ' : '') + escape(finding.label) + '</h3>' + status + '<button data-finding="' + escape(finding.id) + '" class="wide">Open procedure</button></article>';
+  return '<article class="alert ' + (finding.urgent ? 'urgent' : 'watch') + ' reading-finding"' + (locate ? ' data-locate="' + escape(finding.system) + '" tabindex="0" aria-label="' + escape(finding.label) + '; select to locate body system"' : '') + '><h3>' + (finding.urgent ? 'Act now: ' : '') + escape(finding.label) + '</h3>' + status + '<button data-finding="' + escape(finding.id) + '" class="wide">Open procedure</button></article>';
 }
 
 function bodyMarkers(data) {
   return systems.filter(system => regionPositions[system.id]).map(system => {
     const reports = visibleEvents(data, system.id);
-    const findings = allFindings(data).filter(item => item.system === system.id);
+    const findings = allFindings(data).filter(item => item.system === system.id && (!item.missionFinding || item.healthConcern));
     if (!reports.length && !findings.length) return '';
-    const urgent = reports.some(event => event.urgent);
+    const urgent = reports.some(event => event.urgent) || findings.some(finding => finding.urgent);
     const label = (urgent ? 'Urgent' : 'Review') + ' · ' + system.label;
-    const panelId = 'body-conditions-' + system.id;
-    const below = ['head', 'eyes', 'sleep'].includes(system.id);
-    return '<div slot="hotspot-' + system.id + '" class="body-pin ' + (below ? 'below' : '') + '" data-position="' + regionPositions[system.id] + '">' +
-      '<button class="bone-marker ' + (urgent ? 'pin-urgent' : 'pin-review') + '" data-body-alert="' + system.id + '" aria-label="' + label + '" aria-expanded="false" aria-controls="' + panelId + '"><span aria-hidden="true"></span></button>' +
-      '<div class="body-callout" id="' + panelId + '" role="region" aria-label="' + system.label + ' conditions" hidden><strong>' + escape(system.label) + '</strong>' +
-      reports.map(event => '<p><b>' + (event.urgent ? 'Urgent' : 'Review') + '</b> · ' + escape(event.text) + '</p>').join('') +
-      findings.map(finding => '<p>' + escape(finding.label) + '<br><b>' + escape(finding.value) + ' ' + (finding.unit || metrics[finding.key]?.unit || '') + '</b><br><small>Demo reference · ' + escape(finding.reference) + '</small></p>').join('') +
-      '</div></div>';
+    return '<div slot="hotspot-' + system.id + '" class="body-pin" data-position="' + regionPositions[system.id] + '">' +
+      '<button class="bone-marker ' + (urgent ? 'pin-urgent' : 'pin-review') + '" data-body-alert="' + system.id + '" aria-label="' + label + '" aria-haspopup="dialog"><span aria-hidden="true"></span></button></div>';
   }).join('');
 }
 
@@ -284,7 +290,7 @@ function dashboard(data) {
       <section class="panel attention"><div class="panel-heading"><h2>Attention queue</h2></div>${attention(data)}</section>
       <section class="panel anatomy"><div class="panel-heading"><h2>Body systems</h2><button id="flip" class="subtle">${back ? 'Back' : 'Front'} ⇄</button></div>
         <div class="skeleton-stage">
-          <details class="layer-settings"><summary>Visible layers & opacity</summary>
+          <details class="layer-settings"><summary>${uiIcon('layers')}Visible layers & opacity</summary>
             <fieldset><legend>Body layers</legend>${layers.map(layer => `<div class="layer-row"><label><input type="checkbox" data-layer="${layer.id}" ${layer.visible ? 'checked' : ''}> ${layer.label}</label><input type="range" min="1" max="100" value="${layer.opacity}" data-opacity="${layer.id}" aria-label="${layer.label} opacity" ${layer.visible ? '' : 'disabled'}><output>${layer.opacity}%</output></div>`).join('')}</fieldset><button id="reset-layers" class="subtle wide" type="button">Reset to default</button>
           </details>
           <model-viewer id="body-model" src="assets/anatomy.glb" alt="Interactive layered human anatomy. Drag to rotate. Zoom is disabled. Use the system list for health evidence."
@@ -295,7 +301,7 @@ function dashboard(data) {
           <p class="small muted">Drag to rotate · Fixed zoom</p>
         </div>
       </section>
-      <section class="panel evidence"><details class="system-menu"><summary><span>Review body system</span><strong role="heading" aria-level="2">${system.label}</strong></summary><div class="system-list" aria-label="Body system selection">${systems.map(item => '<button data-system="' + item.id + '" aria-pressed="' + (item.id === selected) + '">' + item.label + '</button>').join('')}</div></details>
+      <section class="panel evidence"><details class="system-menu"><summary><span>Review body system</span><strong class="system-title" role="heading" aria-level="2">${uiIcon(system.id)}${system.label}</strong></summary><div class="system-list" aria-label="Body system selection">${systems.map(item => '<button data-system="' + item.id + '" aria-pressed="' + (item.id === selected) + '">' + uiIcon(item.id) + item.label + '</button>').join('')}</div></details>
         <div class="evidence-body">${visibleEvents(data, system.id).map(event => `<div class="region-event"><strong>${event.urgent ? 'Urgent' : 'Review'} · ${escape(event.text)}</strong><p>${utc(event.time)} · Crew report</p><button data-event="${escape(event.id)}">Open event & record action</button></div>`).join('')}${system.keys.length ? system.keys.map(key => {
           const record = latest(data.records, key);
           const finding = allFindings(data).find(item => item.key === key);
@@ -361,10 +367,10 @@ async function savePersonal(event) {
     button.disabled = false;
   }
 }
-function attention(data) {
-  const events = visibleEvents(data);
-  const findings = allFindings(data).filter(item => !item.missionFinding || item.healthConcern);
-  return '<div class="attention-content">' + findings.map(finding => findingCard(finding, data)).join('') +
+function attention(data, systemId) {
+  const events = visibleEvents(data, systemId);
+  const findings = allFindings(data).filter(item => (!item.missionFinding || item.healthConcern) && (!systemId || item.system === systemId));
+  return '<div class="attention-content">' + findings.map(finding => findingCard(finding, data, !systemId)).join('') +
     events.map(event => '<article class="alert ' + (event.urgent ? 'urgent' : 'watch') + '"><h3>' + (event.urgent ? 'Act now: ' : '') + escape(event.text) + '</h3><p class="queue-status">' + (event.acknowledged ? 'Crew report acknowledged; review remains open' : 'Crew report awaiting review') + '</p><button data-event="' + escape(event.id) + '" class="wide">Open procedure</button></article>').join('') +
     (!events.length && !findings.length ? '<div class="quiet"><h3>No flagged health concerns</h3></div>' : '') + '</div>';
 }
@@ -427,16 +433,14 @@ function bindDashboard() {
   if ($('#personal-form')) $('#personal-form').onsubmit = savePersonal;
   document.querySelectorAll('[data-system]').forEach(button => button.onclick = () => { selected = button.dataset.system; render(); });
   document.querySelectorAll('[data-body-alert]').forEach(button => button.onclick = () => {
-    const panel = document.getElementById(button.getAttribute('aria-controls'));
-    const open = panel.hidden;
-    document.querySelectorAll('.body-callout').forEach(item => { item.hidden = true; });
-    document.querySelectorAll('[data-body-alert]').forEach(item => {
-      item.setAttribute('aria-expanded', 'false');
-      item.parentElement.classList.remove('expanded');
+    const systemId = button.dataset.bodyAlert;
+    modal(systems.find(system => system.id === systemId).label, attention(profile(), systemId));
+    document.querySelectorAll('#dialog-body [data-finding]').forEach(action => {
+      action.onclick = () => findingDialog(action.dataset.finding);
     });
-    panel.hidden = !open;
-    button.setAttribute('aria-expanded', String(open));
-    button.parentElement.classList.toggle('expanded', open);
+    document.querySelectorAll('#dialog-body [data-event]').forEach(action => {
+      action.onclick = () => eventDialog(action.dataset.event);
+    });
   });
   document.querySelectorAll('[data-locate]').forEach(card => {
     const locate = () => {
