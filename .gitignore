@@ -8,4 +8,6 @@ artifacts/aether_protocols_256d.json
 artifacts/*.gguf
 *.onnx
 .env
+.env.*
+!.env.example
 info.txt
