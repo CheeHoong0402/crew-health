@@ -5,25 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f8f8fa">
   <title>Crew Health — Mission health monitor</title>
+  <script>
+    let savedTheme;
+    try { savedTheme = localStorage.getItem('crew-health-theme'); } catch {}
+    const initialDark = savedTheme === 'dark' || (savedTheme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+    function applyTheme(dark) {
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      document.querySelector('meta[name="theme-color"]').content = dark ? '#13151e' : '#f8f8fa';
+      document.getElementById('theme-toggle')?.setAttribute('aria-pressed', String(dark));
+    }
+    applyTheme(initialDark);
+    document.addEventListener('DOMContentLoaded', () => {
+      const toggle = document.getElementById('theme-toggle');
+      applyTheme(initialDark);
+      toggle.addEventListener('click', () => {
+        const dark = document.documentElement.dataset.theme !== 'dark';
+        applyTheme(dark);
+        try { localStorage.setItem('crew-health-theme', dark ? 'dark' : 'light'); } catch {}
+      });
+    });
+  </script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="style.css">
   <script type="module" src="app.js"></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to main content</a>
-  <div class="utility-bar"><span>Offline-first health review</span><span>CSV & crew observations</span><span>Research prototype</span></div>
   <header class="topbar">
     <a href="#home" class="brand" aria-label="Crew Health home"><span class="brandmark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M7 24a12 12 0 1 1 18 0M11 20a6.5 6.5 0 1 1 10 0M15 16a1.5 1.5 0 1 1 2 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 20v8m-4-4h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>Crew Health</a>
-    <nav class="role-tabs" aria-label="Pages"><button data-page="home" aria-pressed="true">Overview</button><button data-page="dashboard" aria-pressed="false">Dashboard</button><button data-page="profile" aria-pressed="false">Profile & data</button><button data-page="log" aria-pressed="false">Log</button></nav>
+    <nav class="role-tabs" aria-label="Pages"><button data-page="dashboard" aria-pressed="false">Dashboard</button><button data-page="profile" aria-pressed="false">Profile & data</button><button data-page="home" aria-pressed="true">About the project</button><button data-page="log" aria-pressed="false">Log</button></nav>
     <span class="prototype">Local research prototype</span>
-    <button id="help" class="danger-button">＋ Crew help</button>
+    <div class="topbar-actions"><button id="theme-toggle" type="button" aria-label="Dark mode" aria-pressed="false"><span class="theme-label-light" aria-hidden="true">Light</span><span class="theme-label-dark" aria-hidden="true">Dark</span><span class="theme-thumb" aria-hidden="true"><svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><svg class="theme-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/></svg></span></button><button id="help" class="danger-button">＋ Crew help</button></div>
   </header>
   <div id="notice" role="status" aria-live="polite"></div>
   <main id="main" tabindex="-1"></main>
   <footer>
     <div class="footer-main">
       <div><p class="footer-brand">Crew Health</p><p>A local workspace for astronaut health observations, evidence, and crew actions.</p><p>Fictional demo data. Mission validation required for operational use.</p></div>
-      <div><h2>Workspace</h2><a href="#home">Overview</a><a href="#dashboard">Health dashboard</a><a href="#profile">Profile & data</a><a href="#log">Activity log</a></div>
+      <div><h2>Workspace</h2><a href="#dashboard">Health dashboard</a><a href="#profile">Profile & data</a><a href="#home">About the project</a><a href="#log">Activity log</a></div>
       <div><h2>Explore the mission</h2><a href="#home-workflows">How it works</a><a href="#home-scope">Five-hazard scope</a><a href="https://www.nasa.gov/hrp/hazards/" target="_blank" rel="noreferrer">NASA research ↗</a><a href="https://github.com/CheeHoong0402/crew-health" target="_blank" rel="noreferrer">Project repository ↗</a></div>
       <div><h2>Built around the crew</h2><p>Review available evidence.<br>Keep the original record.<br>Follow the next action.</p><button id="sources">Research & scope ↗</button></div>
     </div>
