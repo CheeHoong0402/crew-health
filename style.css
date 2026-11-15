@@ -822,19 +822,15 @@ body::before {
   background-size: 223px 251px, 347px 307px, 431px 389px, 100% 100%, 100% 100%, 100% 100%;
 }
 .mars-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0 0 auto auto;
   z-index: -1;
   pointer-events: none;
-  height: 330px;
+  height: 350px;
   aspect-ratio: .73;
   background: url("assets/mars-viking.jpg") left bottom / 200% 146% no-repeat;
   clip-path: ellipse(99.6% 72.7% at 100% 27%);
   mask-image: linear-gradient(to right, #0003, #0008 68%, #000e);
-}
-#quick-checkin { anchor-name: --record-checkin; }
-@supports (bottom: anchor(--record-checkin top)) {
-  body:has(#quick-checkin) .mars-backdrop { height: auto; bottom: anchor(--record-checkin top); }
 }
 @media (max-width: 640px) {
   .mars-backdrop { mask-image: linear-gradient(to right, transparent 38%, #0005 74%, #000c); }
