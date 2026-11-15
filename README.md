@@ -25,6 +25,8 @@ Policy: only the deterministic Tier 3 interlock (and abnormal scans) set the ale
 
 # Astra Health
 
+Vercel builds the GitHub source with `node scripts/build-web.js` and serves `dist`. The build copies the service worker's offline asset list and the service worker itself. CSV evaluation, local storage, anatomy and built-in procedures work in the hosted app. AETHER model suggestions require the local Python service and are unavailable in this static deployment. Browser data is scoped to the deployed site's origin.
+
 Offline astronaut health monitoring demo based on the supplied challenge brief. Use artificial data for judging. Run `npm start`, then open http://127.0.0.1:4173. No dependency installation is needed. Run `npm test`.
 
 Run with Node.js using `npm start`, then open http://127.0.0.1:4173. Vendored browser assets are included. Use `npm ci` when updating development dependencies. Run checks with `npm test`.
