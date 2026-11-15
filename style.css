@@ -212,6 +212,60 @@ dialog::backdrop { background: #211a345c; }
 #dialog-body > p, #dialog-body form > p { margin: 12px 0; font-size: 13px; }
 .guidance h3 { font-size: 17px; margin-bottom: 10px; }
 .guidance p, .guidance li { font-size: 13px; margin-top: 8px; }
+#dialog-body > .guidance:has(> ol) {
+  display: flex;
+  flex-direction: column;
+  background: #f0effc;
+  border: 1px solid #b5b3df;
+  border-left: 6px solid var(--cyan);
+  border-radius: 16px;
+  padding: clamp(18px, 4vw, 28px);
+  margin: 0 0 24px;
+}
+#dialog-body > .guidance:has(> ol) > h3 {
+  color: #33347d;
+  font-size: clamp(21px, 3vw, 26px);
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0 0 18px;
+}
+#dialog-body > .guidance:has(> ol) > ol {
+  order: 1;
+  padding-left: 28px;
+  margin: 0;
+}
+#dialog-body > .guidance:has(> ol) > ol > li {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid #dcdbea;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.6;
+  padding: 15px 18px;
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+#dialog-body > .guidance:has(> ol) > ol > li::marker {
+  color: #33347d;
+  font-size: 19px;
+  font-weight: 750;
+}
+#dialog-body > .guidance:has(> ol) > p,
+#dialog-body > .guidance:has(> ol) > details {
+  order: 2;
+  font-size: 12px;
+  margin-top: 12px;
+}
+@media (forced-colors: active) {
+  #dialog-body > .guidance:has(> ol),
+  #dialog-body > .guidance:has(> ol) > ol > li {
+    background: Canvas;
+    border-color: CanvasText;
+  }
+  #dialog-body > .guidance:has(> ol) > h3,
+  #dialog-body > .guidance:has(> ol) > ol > li::marker { color: CanvasText; }
+}
 .table-scroll { overflow: auto; max-width: 100%; overscroll-behavior: contain; margin-top: 18px; }
 table { width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; }
 caption { text-align: left; padding: 10px 0; color: var(--muted); }

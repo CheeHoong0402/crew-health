@@ -4,12 +4,14 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { handleGuidance } from './aether-api.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const allowed = new Set(['data/testing/astronaut-health-data.csv', 'data/testing/device-timestamp-synthetic.csv', 'device-csv.js', 'device-config.js', 'data/testing/device-observations-synthetic.csv', 'mission-demo.js', 'demo-editor.js', 'motion.js', 'assets/lenis.js', 'assets/lenis-LICENSE.txt', 'hazard-csv.js', 'data/testing/five-hazards-synthetic.csv', 'assets/anatomy.glb', 'assets/meshopt_decoder.js', 'assets/anatomy-LICENSE.md', 'assets/anatomy-ATTRIBUTION.md', 'assets/meshopt-LICENSE.md', 'assets/skeleton.glb', 'assets/model-viewer.min.js', 'assets/model-viewer-LICENSE.txt', 'index.html', 'app.js', 'model.js', 'csv.js', 'style.css', 'sw.js', 'manifest.webmanifest', 'data/testing/healthy-data.csv', 'data/testing/unhealthy-data.csv']);
 const types = { '.glb': 'model/gltf-binary', '.txt': 'text/plain', '.md': 'text/plain; charset=utf-8', '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.csv': 'text/csv; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 http.createServer(async (request, response) => {
   const filename = new URL(request.url, 'http://localhost').pathname.slice(1) || 'index.html';
+  if (filename === 'api/guidance') return handleGuidance(request, response);
   if (!allowed.has(filename)) { response.writeHead(404).end('Not found'); return; }
   try {
     const content = await readFile(path.join(root, filename));

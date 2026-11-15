@@ -49,7 +49,9 @@ def reading_hints(text: str):
     t = text.lower(); out = []
     def last(p):
         m = re.search(p, t); return float(m.group(1)) if m else None
-    co2 = last(r"(?:co2|co₂|ppco2|二氧化碳)[^\d]{0,15}" + _N)
+    co2_match = re.search(r"(?:co2|co₂|ppco2|二氧化碳)[^\d]{0,15}" + _N + r"\s*(ppm|mmhg)?", t)
+    # ppm needs total pressure to derive partial pressure; never treat it as mmHg.
+    co2 = float(co2_match.group(1)) if co2_match and co2_match.group(2) != "ppm" else None
     if co2 is not None:
         if co2 > 3.0: out.append(("PROTO-ECLSS-01", f"CO2 {co2} mmHg > 3.0 limit", 2))
         elif co2 > 2.5: out.append(("PROTO-SANS-01", f"CO2 {co2} mmHg > 2.5 (SANS watch)", 1))

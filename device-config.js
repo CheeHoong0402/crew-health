@@ -78,6 +78,17 @@ export function procedureForConcern(finding) {
   return { title, steps, version: 'demo-local-v2' };
 }
 
+export function guidanceQuestion(finding) {
+  if (finding.restricted || finding.id?.startsWith('mission-support-')) return 'Crew member requests a private wellbeing check-in.';
+  const label = finding.label || finding.text || 'Reported health concern';
+  const range = finding.range;
+  if (!range) return (finding.key === 'mood' ? 'Self-reported mood ' + finding.value : label).slice(0, 2000);
+  if (finding.system === 'sleep' && range.unit === 'h') return 'Slept ' + range.value + ' hours';
+  const quantity = { ppm: 'Cabin CO2', kPa: 'Cabin pressure', 'uSv': 'Personal radiation dose', 'uSv/h': 'Dosimeter dose rate',
+    '°C': 'Body temperature' }[range.unit] || label;
+  return (quantity + ' ' + range.value + ' ' + range.unit).slice(0, 2000);
+}
+
 export const deviceConfig = [
   {
     "record_type": "demo_procedure",

@@ -10,7 +10,7 @@ or key in the path:  /k/<key>/ask  /k/<key>/mcp   (for clients that can only tak
   POST /mcp      JSON-RPC 2.0 (MCP streamable-HTTP, tools: aether_ask / aether_triage / aether_early_warning)
 Research prototype, not a medical device. Never put real patient data through it.
 """
-import sys, os, json, time, hmac, collections, threading, dataclasses
+import sys, os, json, time, hmac, collections, threading, dataclasses, hashlib
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve(); PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 8000
@@ -21,6 +21,8 @@ from engine.tier1_hbm_physics import TelemetryInput
 from engine.text_utils import expand_zh, reading_hints
 
 PIPE = AetherPipeline(); FIELDS = {f.name for f in dataclasses.fields(TelemetryInput)}
+GUIDANCE_VERSION = hashlib.sha256((ROOT / "data/nasa_protocols.jsonl").read_bytes() +
+    ((ROOT / "artifacts/rag_text_clf.joblib").read_bytes() if PIPE.rag.text_clf else b"bootstrap")).hexdigest()[:16]
 STR_FIELDS = ("symptom_notes", "habitat_location", "crew_id")
 DISCLAIMER = "Research prototype - not a medical device. Follow your flight surgeon / mission procedures."
 MAX_BODY = 64 * 1024; RATE = 60  # requests/minute per client
@@ -42,7 +44,7 @@ def ask(question: str):
     out = {"question": question, "matched_protocol": p["title"], "protocol_id": top, "severity": p["severity"], "confidence": round(conf, 3),
            "time_to_criticality_min": p.get("ttc_minutes"), "crew_actions": p["crew_actions"], "hardware_directives": p["hardware_directives"],
            "medical_kit": p.get("med_kit"), "alternatives": [{"protocol_id": k, "title": PIPE.rag.proto_by_id[k]["title"], "score": round(v, 3)} for k, v in ranked[1:3]],
-           "disclaimer": DISCLAIMER}
+           "disclaimer": DISCLAIMER, "guidance_version": GUIDANCE_VERSION}
     if hints: out["reading_flags"] = [h[1] for h in hints]
     if conf < 0.35:
         out["note"] = "Low confidence - the question is vague. Give symptoms or readings (e.g. 'CO2 is 4 mmHg', '血糖 55') or use triage with telemetry."

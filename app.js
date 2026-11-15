@@ -1,4 +1,4 @@
-import { procedureForConcern } from './device-config.js';
+import { procedureForConcern, guidanceQuestion } from './device-config.js';
 import { appendDeviceCsv, deviceColumns, deviceRequired, deviceUnits } from './device-csv.js';
 import { mountDemoEditor } from './demo-editor.js';
 import { currentMissionRows, missionCsv, separateDemo, scenarioTime, demoCoverage, analyseMission, evaluateMission, recordMissionAction, handoffSnapshot } from './mission-demo.js';
@@ -718,7 +718,11 @@ function findingDialog(id) {
   if (!finding) return;
   if (finding.missionFinding) return missionFindingDialog(finding);
   modal('Demo procedure', '<h3>' + escape(finding.label) + '</h3><p>' + escape(finding.value) + ' ' + (finding.unit || metrics[finding.key]?.unit || '') + ' · Demo reference ' + escape(finding.reference) + '</p><p>' + utc(finding.record.time) + ' · ' + escape(finding.record.source) + '</p><p class="small muted">Evaluated when this view opened. ' + finding.rule + '. Measurement context: ' + escape(finding.record.context || 'Not recorded') + '</p><div class="guidance"></div>' + sourceDetails(finding.record, finding.rule) + (finding.review?.actions || []).map(action => '<p>' + utc(action.time) + ' · ' + escape(action.note) + '</p>').join('') + (finding.key === 'sleep' ? '<button id="schedule-sleep" class="wide">Schedule sleep follow-up</button>' : '') + '<form><label>Action taken or next step<textarea name="note" required maxlength="1000"></textarea></label>' + formEnd('Record review'), async fields => {
-    await changeProfile(data => reviewFinding(data, id, fields.get('note'), new Date().toISOString()));
+    const suggestion = $('#dialog-body .guidance').suggestion;
+    await changeProfile(data => {
+      reviewFinding(data, id, fields.get('note'), new Date().toISOString());
+      data.reviews.find(item => item.findingId === id).actions.at(-1).guidance = suggestion;
+    });
     toast('Review saved. The source reading remains visible until new evidence changes the finding.');
   });
   if ($('#schedule-sleep')) $('#schedule-sleep').onclick = () => {
@@ -732,17 +736,72 @@ function findingDialog(id) {
 function showConcernProcedure(finding) {
   const procedure = procedureForConcern(finding);
   const panel = $('#dialog-body .guidance');
+  panel.suggestion = { provider: 'local', version: procedure.version };
   panel.innerHTML = '<h3>' + escape(procedure.title) + '</h3><ol>' +
     procedure.steps.map(step => '<li>' + escape(step) + '</li>').join('') + '</ol>';
   const evidence = document.createElement('p');
   evidence.textContent = 'Procedure version: ' + procedure.version + ' (fictional demo)' +
     (finding.procedure ? '. Imported procedure ' + finding.procedure.record_id + ' ' + finding.procedure.procedure_version + ': ' + finding.procedure.text : '');
   $('#dialog-body').append(evidence);
+  const status = document.createElement('p');
+  status.setAttribute('role', 'status');
+  status.textContent = 'Loading AETHER suggestions…';
+  panel.append(status);
+  return loadAetherProcedure(finding, panel, status, evidence);
+}
+
+async function loadAetherProcedure(finding, panel, status, evidence) {
+  try {
+    const response = await fetch('api/guidance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: guidanceQuestion(finding) }), signal: AbortSignal.timeout(17000)
+    });
+    if (!response.ok) throw Error();
+    const result = await response.json();
+    if (!panel.isConnected || !panel.closest('dialog')?.open) return;
+    if (result.note || !Number.isFinite(result.confidence) || result.confidence < 0.35 ||
+        result.severity === 'NOMINAL_GREEN' || !Array.isArray(result.crew_actions) || !result.crew_actions.length ||
+        result.crew_actions.some(step => typeof step !== 'string')) {
+      status.textContent = 'AETHER could not match this concern confidently. Onboard demo steps shown.';
+      return;
+    }
+    const flag = { CRITICAL_RED: 'RED', CAUTION_AMBER: 'AMBER' }[result.severity];
+    if (!flag || typeof result.matched_protocol !== 'string') throw Error();
+    panel.innerHTML = '<h3>' + escape(result.matched_protocol) + '</h3>' +
+      '<p class="small">AETHER suggestion · ' + flag + ' · Demo only; confirm with the crew medical officer.</p><ol>' +
+      result.crew_actions.map(step => '<li>' + escape(step) + '</li>').join('') + '</ol>';
+    panel.suggestion = {
+      provider: 'AETHER', version: result.guidance_version || 'unversioned-demo',
+      protocolId: result.protocol_id, retrievedAt: new Date().toISOString(),
+      question: guidanceQuestion(finding), severity: result.severity, steps: result.crew_actions,
+      confidence: result.confidence, timeToCriticalityMinutes: result.time_to_criticality_min,
+      medicineKit: result.medical_kit, hardwareDirectives: result.hardware_directives,
+      sourceIds: finding.evidenceIds || [finding.record?.id || finding.id]
+    };
+    const references = document.createElement('details');
+    references.innerHTML = '<summary>Model references</summary>' +
+      (Number.isFinite(result.time_to_criticality_min) && result.time_to_criticality_min >= 0 ?
+        '<p>Model time-to-criticality estimate (demo): ' + escape(result.time_to_criticality_min) + ' min</p>' : '') +
+      (typeof result.medical_kit?.recommended_agent === 'string' ?
+        '<p>Medicine-kit reference (demo; requires medical confirmation): ' + escape(result.medical_kit.recommended_agent) + '</p>' : '') +
+      (Array.isArray(result.hardware_directives) ? '<p>Suggested hardware commands (display only)</p><ul>' +
+        result.hardware_directives.filter(command => typeof command === 'string').map(command => '<li>' + escape(command) + '</li>').join('') + '</ul>' : '');
+    panel.append(references);
+    evidence.textContent += ' AETHER protocol ' + result.protocol_id + ', retrieved ' + new Date().toISOString() +
+      ', match confidence ' + result.confidence + '.';
+  } catch {
+    if (panel.isConnected) status.textContent = 'AETHER is unavailable. Onboard demo steps shown.';
+  }
 }
 function eventDialog(id) {
   const event = profile().events.find(item => item.id === id);
   modal('Demo procedure', '<p class="status-label urgent-text">' + (event.urgent ? '⬣ Act now' : '△ Review') + '</p><h3>' + escape(event.text) + '</h3>' + (event.actions || []).map(action => '<p class="event-action"><strong>' + utc(action.time) + '</strong><br>' + escape(action.text || 'Acknowledged') + '</p>').join('') + '<p>' + utc(event.time) + ' · Crew report</p><div class="guidance"></div><form><label>Outcome or follow-up<textarea name="outcome" maxlength="1000" placeholder="What action was taken and what remains due?"></textarea></label><label>Record action<select name="action"><option value="ack">Acknowledge and keep open</option><option value="close">Close with outcome</option></select></label>' + formEnd('Save event update'), async fields => {
-    await changeProfile(data => updateEvent(data.events.find(item => item.id === id), fields.get('action'), fields.get('outcome'), new Date().toISOString()));
+    const suggestion = $('#dialog-body .guidance').suggestion;
+    await changeProfile(data => {
+      const target = data.events.find(item => item.id === id);
+      updateEvent(target, fields.get('action'), fields.get('outcome'), new Date().toISOString());
+      target.actions.at(-1).guidance = suggestion;
+    });
     toast('Event updated onboard.');
   });
   showConcernProcedure(event);
@@ -853,11 +912,13 @@ function missionFindingDialog(finding) {
     (stored?.actions || []).map(action => '<p>' + utc(action.time) + ' · ' + escape(action.owner) + ' · ' + escape(action.note) + '</p>').join('') +
     '<form><label>Responsible crew member<input name="owner" required maxlength="100" value="A-08"></label><label>Action or result<textarea name="note" required maxlength="1000"></textarea></label><label>Assign next check (UTC, optional)<input type="datetime-local" name="due"></label>' +
     (finding.taskId ? '<label class="checkbox"><input type="checkbox" name="complete">Complete this task or crew assessment with the recorded result</label>' : '') + formEnd('Save mission action'), async fields => {
+      const suggestion = $('#dialog-body .guidance').suggestion;
       await changeMission(target => {
         const fresh = evaluateMission(target, profile()).find(item => item.id === finding.id);
         if (!fresh) throw Error('This finding changed. Reopen the current evidence.');
         const time = target.evaluationTime || scenarioTime(target.records);
         recordMissionAction(target, fresh, fields.get('note'), fields.get('owner'), fields.get('due') ? new Date(fields.get('due') + 'Z').toISOString() : '', time, fields.has('complete'));
+        target.actions[fresh.id].actions.at(-1).guidance = suggestion;
       });
       toast('Mission action saved locally.');
     });
