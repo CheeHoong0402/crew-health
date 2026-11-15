@@ -88,3 +88,9 @@ Not verified: physical touch hardware, browser/OS reduced-motion preference swit
 - Browser observed in-flight 0.65 opacity/10px transforms on dashboard panels, both profile panels and log rows. Attention queue stayed opacity 1/transform none. Native workspace scrolling retained.
 - Form focus and keyboard navigation settled motion; check-in dialog opened normally and was dismissed without saving. All three routes fit at 390px without document overflow. Browser error log empty.
 - Saved settled desktop proof to NASA/outputs/crew-health-workspace-motion.jpg. Restored viewport and retained dashboard preview. Physical-device frame pacing and OS preference switching not checked; reduced-motion behavior covered by unit tests. Local only, no commit/push/deploy.
+
+## Health summary rebuild — 2026-11-15
+Use the supplied Apple Health reference: desktop category rail, compact reading cards, concern review, system evidence and supporting anatomy. Preserve local data and existing actions. Mobile uses two reading columns and a system dropdown. Verify syntax, existing tests and rendered desktop/mobile paths; no publication.
+
+## Confirmed Summary checkpoint
+Apple Health visual baseline. Needs attention → pinned readings → trends. Persistent desktop sidebar and dedicated hash category routes with Back. Summary only is the review checkpoint; detailed reading/action redesign follows user review. Use actual observations, explicit missing values, and existing trend calculations.

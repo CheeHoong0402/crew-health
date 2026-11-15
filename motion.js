@@ -8,6 +8,7 @@ let scroller;
 let observer;
 let currentPage;
 let keyboard = false;
+let dashboardRoute;
 
 function finishReveals() {
   for (const animation of active) animation.finish();
@@ -66,12 +67,49 @@ function revealHeadline(target, delay) {
 }
 
 
-export function updateMotion(page) {
+export function updateMotion(page, route) {
+  if (route === '#dashboard/') route = '#dashboard';
   const entering = currentPage !== page;
   observer?.disconnect();
   finishReveals();
   stopSmoothing();
   currentPage = page;
+  if (page === 'dashboard' && route) {
+    const previousRoute = dashboardRoute;
+    const changed = previousRoute !== route;
+    dashboardRoute = route;
+    if (!changed || keyboard || document.querySelector('dialog[open]')) return;
+    const isDetail = value => value?.startsWith('#dashboard/') && !['#dashboard/categories', '#dashboard/anatomy'].includes(value);
+    if (isDetail(previousRoute) && isDetail(route)) return;
+    const targets = document.querySelectorAll('#main .summary-section, #main .category-browser, #main .category-overview, #main > .evidence, #main > .anatomy');
+    const revealed = new Set();
+    const categoryBrowser = route === '#dashboard/categories';
+    const anatomy = route === '#dashboard/anatomy';
+    const summary = route === '#dashboard';
+    // Deliberately slower page-level transitions follow the requested calm pacing; controls stay immediate.
+    const from = summary ? 'scale(.97)' : categoryBrowser ? 'translateX(-14px)' : anatomy ? 'scale(.94)' : 'translateX(24px)';
+    const to = summary || anatomy ? 'scale(1)' : 'translateX(0)';
+    const reveal = (target, index) => {
+      if (revealed.has(target) || !target.isConnected || !target.animate || keyboard || document.querySelector('dialog[open]')) return;
+      revealed.add(target);
+      playReveal(target, reducedMotion.matches
+        ? [{ opacity: .8 }, { opacity: 1 }]
+        : [{ opacity: .35, transform: from }, { opacity: 1, transform: to }],
+        { duration: reducedMotion.matches ? 200 : categoryBrowser ? 380 : anatomy ? 560 : 480, delay: reducedMotion.matches || !summary ? 0 : Math.min(index, 2) * 70, easing: 'cubic-bezier(0.22, 0.68, 0, 1)' });
+    };
+    if (!('IntersectionObserver' in window)) { targets.forEach(reveal); return; }
+    observer = new IntersectionObserver(entries => {
+      let order = 0;
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        observer.unobserve(entry.target);
+        reveal(entry.target, order++);
+      }
+    }, { threshold: .08 });
+    targets.forEach(target => observer.observe(target));
+    return;
+  }
+  dashboardRoute = undefined;
   if (page !== 'home') {
     // Re-entering a workspace gets a brief entrance; saves and evidence changes stay immediate.
     if (!entering || keyboard || document.querySelector('dialog[open]')) return;
@@ -80,8 +118,8 @@ export function updateMotion(page) {
       if (!target.animate) return;
       playReveal(target, reducedMotion.matches
         ? [{ opacity: 0.65 }, { opacity: 1 }]
-        : [{ opacity: 0.65, transform: 'translateY(10px)' }, { opacity: 1, transform: 'translateY(0)' }],
-      { duration: reducedMotion.matches ? 180 : 280, delay: reducedMotion.matches ? 0 : Math.min(index, 3) * 40, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+        : [{ opacity: 0.65, transform: page === 'log' ? 'translateX(8px)' : 'scale(.97)' }, { opacity: 1, transform: page === 'log' ? 'translateX(0)' : 'scale(1)' }],
+      { duration: reducedMotion.matches ? 180 : 200, delay: reducedMotion.matches ? 0 : Math.min(index, 3) * 40, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
     });
     return;
   }

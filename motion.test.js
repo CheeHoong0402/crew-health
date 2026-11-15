@@ -137,9 +137,9 @@ test('all workspaces enter with bounded staggering and never replay on data rere
     env.context.updateMotion(page);
     assert.equal(env.instances.length, 0, 'workspace scrolling stays native');
     assert.deepEqual(targets.map(target => target.calls[0].options.delay), [0, 40, 80, 120, 120]);
-    assert.equal(targets[0].calls[0].options.duration, 280);
+    assert.equal(targets[0].calls[0].options.duration, 200);
     assert.equal(targets[0].calls[0].frames[0].opacity, 0.65);
-    assert.equal(targets[0].calls[0].frames[0].transform, 'translateY(10px)');
+    assert.equal(targets[0].calls[0].frames[0].transform, page === 'log' ? 'translateX(8px)' : 'scale(.97)');
     env.context.updateMotion(page);
     assert.equal(targets[0].calls.length, 1);
     assert.equal(targets[0].calls[0].animation.finished, true);
@@ -178,4 +178,68 @@ test('workspace interaction settles motion but programmatic main focus preserves
     else env.events.keydown();
     assert.equal(target.calls[0].animation.finished, true);
   }
+});
+
+
+test('dashboard sections reveal once per route and settle on keyboard input', () => {
+  const env = environment();
+  const targets = env.targets(2);
+  env.context.updateMotion('dashboard', '#dashboard');
+  assert.equal(env.instances.length, 0);
+  env.enter();
+  assert.equal(targets[0].calls[0].frames[0].transform, 'scale(.97)');
+  env.enter();
+  assert.equal(targets[0].calls.length, 1);
+  env.context.updateMotion('dashboard', '#dashboard');
+  assert.equal(targets[0].calls.length, 1);
+  env.context.updateMotion('dashboard', '#dashboard/categories');
+  env.enter();
+  assert.equal(targets[0].calls.length, 2);
+  env.events.keydown();
+  assert.equal(targets[0].calls[1].animation.finished, true);
+});
+test('dashboard reduced motion uses opacity without transforms', () => {
+  const env = environment({ reduced: true });
+  const [target] = env.targets(1);
+  env.context.updateMotion('dashboard', '#dashboard');
+  env.enter();
+  assert.equal(target.calls[0].frames[0].transform, undefined);
+  assert.equal(target.calls[0].options.delay, 0);
+});
+
+
+test('dashboard routes have distinct motion with no upward translation', () => {
+  for (const [route, transform, duration] of [
+    ['#dashboard', 'scale(.97)', 480],
+    ['#dashboard/categories', 'translateX(-14px)', 380],
+    ['#dashboard/heart', 'translateX(24px)', 480],
+    ['#dashboard/anatomy', 'scale(.94)', 560]
+  ]) {
+    const env = environment();
+    const [target] = env.targets(1);
+    env.context.updateMotion('dashboard', route); env.enter();
+    assert.equal(target.calls[0].frames[0].transform, transform);
+    assert.equal(target.calls[0].options.duration, duration);
+  }
+});
+
+
+test('switching between individual health categories stays instant', () => {
+  const env = environment();
+  const [target] = env.targets(1);
+  env.context.updateMotion('dashboard', '#dashboard/heart'); env.enter();
+  assert.equal(target.calls.length, 1);
+  env.context.updateMotion('dashboard', '#dashboard/sleep');
+  assert.equal(target.calls.length, 1);
+  assert.equal(target.calls[0].animation.finished, true);
+});
+
+
+test('Summary return with a trailing slash uses the Summary motion', () => {
+  const env = environment();
+  const [target] = env.targets(1);
+  env.context.updateMotion('dashboard', '#dashboard/'); env.enter();
+  assert.equal(target.calls[0].frames[0].transform, 'scale(.97)');
+  env.context.updateMotion('dashboard', '#dashboard');
+  assert.equal(target.calls.length, 1);
 });
