@@ -109,6 +109,19 @@ export const demoRules = {
   mood: { system: 'sleep' }
 };
 
+export function gaugeScale(value, low, high) {
+  if (!Number.isFinite(value) || (low == null && high == null) ||
+      (low != null && !Number.isFinite(low)) || (high != null && !Number.isFinite(high)) ||
+      (low != null && high != null && low >= high)) return null;
+  const span = low != null && high != null ? high - low : Math.max(Math.abs(low ?? high) * 0.25, 1);
+  const min = Math.min(value - span * 0.2, (low ?? high - span) - span * 0.5);
+  const max = Math.max(value + span * 0.2, (high ?? low + span) + span * 0.5);
+  const position = number => (number - min) / (max - min);
+  return { min, max, position: position(value), start: low == null ? 0 : position(low),
+    end: high == null ? 1 : position(high),
+    deviation: low != null && value < low ? value - low : high != null && value > high ? value - high : 0 };
+}
+
 export function readingFindings(profile) {
   return Object.entries(demoRules).flatMap(([key, rule]) => {
     const record = latest(profile.records, key);
@@ -124,7 +137,8 @@ export function readingFindings(profile) {
       id, key, system: rule.system, record, value,
       reference: key === 'mood' ? 'Low or Very low requests a wellbeing review' : low + '–' + high + ' ' + metrics[key].unit + ' (inclusive)',
       label: (metrics[key]?.label || 'Mood') + ' needs review',
-      review, rule: 'Demo reading rule v1'
+      review, rule: 'Demo reading rule v1',
+      range: key === 'mood' ? null : { value, low, high, unit: metrics[key].unit }
     }];
   });
 }

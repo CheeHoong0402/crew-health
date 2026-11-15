@@ -1,3 +1,4 @@
+import { procedureForConcern } from './device-config.js';
 import { appendDeviceCsv, deviceColumns, deviceRequired, deviceUnits } from './device-csv.js';
 import { mountDemoEditor } from './demo-editor.js';
 import { currentMissionRows, missionCsv, separateDemo, scenarioTime, demoCoverage, analyseMission, evaluateMission, recordMissionAction, handoffSnapshot } from './mission-demo.js';
@@ -5,7 +6,7 @@ import { updateMotion } from './motion.js';
 import { appendHazardCsv, hazardColumns } from './hazard-csv.js';
 import './assets/model-viewer.min.js';
 customElements.get('model-viewer').meshoptDecoderLocation = new URL('./assets/meshopt_decoder.js', import.meta.url).href;
-import { metrics, systems, sources, freshProfile, latest, currentRecords, sleepFlag, validateRecord, validatePersonal, updateEvent, openRegionEvents, readingFindings, demoRules, addObservation, reviewFinding, sevenDayReadings, systemMeasurements } from './model.js';
+import { gaugeScale, metrics, systems, sources, freshProfile, latest, currentRecords, sleepFlag, validateRecord, validatePersonal, updateEvent, openRegionEvents, readingFindings, demoRules, addObservation, reviewFinding, sevenDayReadings, systemMeasurements } from './model.js';
 import { parseCsv, appendCsv, csvTestProfile, csvLimit } from './csv.js';
 
 const $ = selector => document.querySelector(selector);
@@ -212,11 +213,36 @@ function sourceDetails(record, rule = '') {
     (rule ? '<p>' + escape(rule) + '</p>' : '') + '</details>';
 }
 
+function findingGauge(range) {
+  if (!range) return '';
+  const { value, low, high, unit } = range;
+  const scale = gaugeScale(value, low, high);
+  if (!scale) return '';
+  const number = value => Number(value.toFixed(2)).toLocaleString();
+  const point = (position, radius = 88) => {
+    const angle = Math.PI * (1 - position);
+    return [120 + radius * Math.cos(angle), 110 - radius * Math.sin(angle)];
+  };
+  const arc = (start, end, className) => {
+    if (end <= start) return '';
+    return '<path class="' + className + '" d="M ' + point(start).join(' ') + ' A 88 88 0 0 1 ' + point(end).join(' ') + '"/>';
+  };
+  const reference = low == null ? 'Demo upper limit ' + number(high) :
+    high == null ? 'Demo minimum ' + number(low) : 'Demo range ' + number(low) + '�' + number(high);
+  const deviation = scale.deviation === 0 ? 'Within demo reference' :
+    number(Math.abs(scale.deviation)) + ' ' + unit + (scale.deviation < 0 ? ' below minimum' : ' above maximum');
+  const label = number(value) + ' ' + unit + (range.peak ? ' � Most extreme interval reading' : '');
+  return '<figure class="finding-gauge" role="img" aria-label="' + escape(label + '. ' + reference + ' ' + unit + '. ' + deviation) + '">' +
+    '<svg viewBox="0 0 240 155" aria-hidden="true" focusable="false">' +
+    arc(0, scale.start, 'gauge-review') + arc(scale.start, scale.end, 'gauge-reference') + arc(scale.end, 1, 'gauge-review') +
+    '<path class="gauge-needle" d="M 120 110 L ' + point(scale.position, 72).join(' ') + '"/><circle class="gauge-hub" cx="120" cy="110" r="5"/>' +
+    '<text class="gauge-tick" x="32" y="133" text-anchor="middle">' + number(scale.min) + '</text><text class="gauge-tick" x="208" y="133" text-anchor="middle">' + number(scale.max) + '</text></svg>' +
+    '<figcaption><strong>' + escape(label) + '</strong><span>' + escape(reference + ' ' + unit) + '</span><span class="gauge-deviation">' + escape(deviation) + '</span></figcaption></figure>';
+}
 function findingCard(finding, data) {
-  const record = finding.record;
-  const flag = finding.key === 'sleep' ? sleepFlag(data) : null;
-  const task = finding.key === 'sleep' ? data.followups.find(item => item.type === 'sleep' && item.day === data.day) : null;
-  return `<article class="alert ${finding.urgent ? 'urgent' : 'watch'} reading-finding" data-locate="${finding.system}" tabindex="0" aria-label="${escape(finding.label)}; select to locate body system"><span class="status-label">${finding.missionFinding ? (finding.review ? 'Action recorded · Mission finding' : (finding.urgent ? 'Act now · Mission finding' : 'Mission review')) : (finding.review ? 'Reviewed · Reading still outside demo reference' : '△ Reading review')}</span><h3>${escape(finding.label)}</h3><p class="finding-value">${escape(finding.value)} <small>${finding.unit || metrics[finding.key]?.unit || ''}</small></p><p class="small">Demo reference · ${escape(finding.reference)}</p><p class="small muted">${utc(record.time)}</p>${flag ? '<p class="small">Two consecutive short nights · Day ' + flag.previous.day + ': ' + flag.previous.values.sleep + ' h · Day ' + flag.current.day + ': ' + flag.current.values.sleep + ' h</p>' : ''}${task ? '<p class="small">' + (task.outcome ? 'Follow-up completed' : 'Follow-up due day ' + task.due) + '</p>' : ''}${finding.detail ? '<p class="small">' + escape(finding.detail) + '</p>' : ''}${sourceDetails(record, finding.rule)}<p class="owner">${finding.review ? 'Crew review recorded' : 'Awaiting crew review'}</p><button data-finding="${finding.id}" class="wide">Review & record action</button></article>`;
+  const gauge = findingGauge(finding.range);
+  const status = gauge || '<p class="queue-status">' + escape(finding.value) + '</p>';
+  return '<article class="alert ' + (finding.urgent ? 'urgent' : 'watch') + ' reading-finding" data-locate="' + escape(finding.system) + '" tabindex="0" aria-label="' + escape(finding.label) + '; select to locate body system"><h3>' + (finding.urgent ? 'Act now: ' : '') + escape(finding.label) + '</h3>' + status + '<button data-finding="' + escape(finding.id) + '" class="wide">Open procedure</button></article>';
 }
 
 function bodyMarkers(data) {
@@ -238,7 +264,7 @@ function bodyMarkers(data) {
 }
 
 function dashboard(data) {
-  const pendingCount = allFindings(data).filter(item => !item.review).length;
+  const pendingCount = allFindings(data).filter(item => (!item.missionFinding || item.healthConcern) && !item.review).length;
   const system = systems.find(item => item.id === selected);
   return `
     <section class="review-strip"><div><strong>${pendingCount} reading${pendingCount === 1 ? '' : 's'} to review</strong><span>Latest available observations · Demo rules v1</span><details class="rule-reference"><summary>View alert thresholds</summary><p>Fictional demo references, inclusive boundaries. Outside these ranges prompts review.</p><ul>${Object.entries(demoRules).map(([key, rule]) => '<li>' + (metrics[key]?.label || 'Mood') + ' · ' + (key === 'mood' ? 'Low or Very low' : (key === 'sleep' ? (data.baseline?.low ?? rule.low) + '–' + (data.baseline?.high ?? rule.high) : rule.low + '–' + rule.high) + ' ' + metrics[key].unit) + '</li>').join('')}</ul></details></div><div class="input-actions"><button data-open-log>Log</button><button id="quick-checkin" class="primary">＋ Record check-in</button></div></section>
@@ -328,10 +354,12 @@ async function savePersonal(event) {
 }
 function attention(data) {
   const events = visibleEvents(data);
-  return '<div class="attention-content">' + allFindings(data).map(finding => findingCard(finding, data)).join('') + events.map(event => `<article class="alert ${event.urgent ? 'urgent' : 'watch'}"><span class="status-label">${event.urgent ? '⬣ Act now' : '△ Review'}</span><h3>${escape(event.text)}</h3><p class="small">Crew report · ${utc(event.time)}</p><span class="evidence-tag">Self-reported · Sensor evidence unavailable</span><p class="owner">${escape(event.owner)} · ${event.urgent ? 'Now' : 'Review requested'}</p>${event.acknowledged ? '<p class="small muted">Acknowledged ' + utc(event.acknowledged) + '</p>' : ''}${'<button data-event="' + event.id + '" class="wide">Open event & onboard guidance</button>'}</article>`).join('') +
-    (!events.length && !allFindings(data).length && !data.followups.some(task => !task.outcome) ? '<div class="quiet"><h3>No open action flags</h3><p>Review available observations and scheduled follow-ups. Unmeasured systems remain unassessed.</p></div>' : '') +
-    data.followups.map(task => '<div class="task"><strong>' + escape(task.title) + '</strong><p class="small">Due day ' + task.due + ' · ' + (task.outcome ? 'Closed · ' + escape(task.outcome) : 'Open') + '</p>' + (!task.outcome ? '<button data-task="' + task.id + '">Record outcome</button>' : '') + '</div>').join('') + '</div>';
+  const findings = allFindings(data).filter(item => !item.missionFinding || item.healthConcern);
+  return '<div class="attention-content">' + findings.map(finding => findingCard(finding, data)).join('') +
+    events.map(event => '<article class="alert ' + (event.urgent ? 'urgent' : 'watch') + '"><h3>' + (event.urgent ? 'Act now: ' : '') + escape(event.text) + '</h3><p class="queue-status">' + (event.acknowledged ? 'Crew report acknowledged; review remains open' : 'Crew report awaiting review') + '</p><button data-event="' + escape(event.id) + '" class="wide">Open procedure</button></article>').join('') +
+    (!events.length && !findings.length ? '<div class="quiet"><h3>No flagged health concerns</h3></div>' : '') + '</div>';
 }
+
 function importedMissionRows(data) {
   return (state._missions?.[data.missionId]?.records || []).filter(row =>
     !row.astronaut_id || row.astronaut_id === data.astronautId);
@@ -666,11 +694,30 @@ function report() {
     toast('Crew report saved. Contact your crew medical officer directly for an urgent concern.');
   });
 }
+function focusProcedure() {
+  const body = $('#dialog-body');
+  const guidance = body.querySelector('.guidance');
+  if (!guidance) return;
+  const evidence = document.createElement('details');
+  const summary = document.createElement('summary');
+  summary.textContent = 'Evidence and previous actions';
+  evidence.append(summary);
+  for (const element of [...body.children]) {
+    if (element === guidance || element.matches('form, button, .guidance')) continue;
+    evidence.append(element);
+  }
+  body.prepend(guidance);
+  if (evidence.children.length > 1) body.append(evidence);
+  const heading = guidance.querySelector('h3');
+  heading.tabIndex = -1;
+  heading.focus({ preventScroll: true });
+  body.closest('dialog').scrollTop = 0;
+}
 function findingDialog(id) {
   const finding = allFindings(profile()).find(item => item.id === id);
   if (!finding) return;
   if (finding.missionFinding) return missionFindingDialog(finding);
-  modal('Reading evidence & action', '<h3>' + escape(finding.label) + '</h3><p>' + escape(finding.value) + ' ' + (finding.unit || metrics[finding.key]?.unit || '') + ' · Demo reference ' + escape(finding.reference) + '</p><p>' + utc(finding.record.time) + ' · ' + escape(finding.record.source) + '</p><p class="small muted">Evaluated when this view opened. ' + finding.rule + '. Measurement context: ' + escape(finding.record.context || 'Not recorded') + '</p><div class="guidance"><h3>Demo review checklist v1</h3><ol><li>Check the entered value, units, device and collection context.</li><li>Use the approved onboard measurement procedure to confirm a suspect reading.</li><li>Record symptoms and contact the crew medical officer for assessment.</li></ol><p>These fictional demo thresholds require mission validation.</p></div>' + (finding.review?.actions || []).map(action => '<p>' + utc(action.time) + ' · ' + escape(action.note) + '</p>').join('') + (finding.key === 'sleep' ? '<button id="schedule-sleep" class="wide">Schedule sleep follow-up</button>' : '') + '<form><label>Action taken or next step<textarea name="note" required maxlength="1000"></textarea></label>' + formEnd('Record review'), async fields => {
+  modal('Demo procedure', '<h3>' + escape(finding.label) + '</h3><p>' + escape(finding.value) + ' ' + (finding.unit || metrics[finding.key]?.unit || '') + ' · Demo reference ' + escape(finding.reference) + '</p><p>' + utc(finding.record.time) + ' · ' + escape(finding.record.source) + '</p><p class="small muted">Evaluated when this view opened. ' + finding.rule + '. Measurement context: ' + escape(finding.record.context || 'Not recorded') + '</p><div class="guidance"></div>' + sourceDetails(finding.record, finding.rule) + (finding.review?.actions || []).map(action => '<p>' + utc(action.time) + ' · ' + escape(action.note) + '</p>').join('') + (finding.key === 'sleep' ? '<button id="schedule-sleep" class="wide">Schedule sleep follow-up</button>' : '') + '<form><label>Action taken or next step<textarea name="note" required maxlength="1000"></textarea></label>' + formEnd('Record review'), async fields => {
     await changeProfile(data => reviewFinding(data, id, fields.get('note'), new Date().toISOString()));
     toast('Review saved. The source reading remains visible until new evidence changes the finding.');
   });
@@ -678,86 +725,28 @@ function findingDialog(id) {
     $('#dialog').close();
     sleepFollowup();
   };
-  bindGuidanceSearch(finding);
+  showConcernProcedure(finding);
+  focusProcedure();
 }
 
-const guidanceTopics = [
-  ['Sleep and wellbeing', ['PROTO-MIND-01'], 'Compare sleep with the time available for rest. If both were short, review the duty schedule. If more time was available, record interruptions. If opportunity is unknown, ask about it before choosing a follow-up.'],
-  ['Blood pressure and pulse', ['PROTO-CV-01'], 'Check posture, activity and cuff context for both readings before comparing them. Record the repeat observation and any reported symptoms.'],
-  ['Glucose and temperature', ['PROTO-MET-01'], 'For glucose, check the unit and timing relative to meals. For temperature, check the measurement method. Link any repeat reading to the original.'],
-  ['Mission & habitat', ['PROTO-ECLSS-01'], 'For cabin CO₂, pressure or temperature, check the compartment, sensor, unit and observation time. Check the interval log for gaps before treating a single reading as a sustained change. If the log is stale, request a current reading. For a mission task or handoff, confirm the responsible crew member, next check time in UTC and any outstanding acknowledgment.'],
-  ['Radiation exposure', ['PROTO-RAD-02', 'PROTO-SPE-01'], 'Check the dosimeter assignment and the interval it covers. Record gaps and request the missing log before updating the exposure total.'],
-  ['Balance, bones and exercise', ['PROTO-BONE-02', 'PROTO-SUIT-01'], 'Record the activity and time of the observation. Link a symptom to the relevant event and compare measured exams under the same conditions.'],
-  ['Vision changes', ['PROTO-SANS-01'], 'Record when the change was noticed and the most recent measured eye exam. Assign the next review to a crew member.']
-];
-
-function bindGuidanceSearch(finding) {
-  const panel = document.createElement('details');
-  panel.className = 'guidance';
-  panel.innerHTML = '<summary>Find guidance</summary><form><label>Search onboard demo checklists<input name="question" required maxlength="200" placeholder="e.g. interrupted sleep"></label><button type="submit">Search with AETHER</button></form><p role="status"></p><div></div>';
-  $('#dialog-body .guidance').after(panel);
-  const form = panel.querySelector('form');
-  const status = panel.querySelector('[role=status]');
-  const choices = panel.lastElementChild;
-  form.elements.question.value = finding.restricted ? '' : (systems.find(system => system.id === finding.system)?.label || '');
-  function show(topics) {
-    choices.replaceChildren();
-    for (const [title, , instructions] of topics) {
-      const details = document.createElement('details');
-      const summary = document.createElement('summary');
-      summary.textContent = title;
-      const body = document.createElement('p');
-      body.textContent = instructions;
-      details.append(summary, body);
-      details.open = topics.length === 1;
-      choices.append(details);
-    }
-  }
-  show(guidanceTopics);
-  form.onsubmit = async event => {
-    event.preventDefault();
-    const question = form.elements.question.value.trim();
-    if (!question) return;
-    const normalize = text => text.toLowerCase().replace(/&/g, ' and ').replace(/\s+/g, ' ').trim();
-    const namedTopic = guidanceTopics.find(([title]) => normalize(title) === normalize(question));
-    if (namedTopic) {
-      show([namedTopic]);
-      status.textContent = 'Onboard checklist · Demo v1';
-      return;
-    }
-    const button = form.querySelector('button');
-    button.disabled = true;
-    status.textContent = 'Searching local AETHER…';
-    try {
-      const response = await fetch('http://127.0.0.1:8000/ask', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit',
-        body: JSON.stringify({ question }), signal: AbortSignal.timeout(5000)
-      });
-      if (!response.ok) throw Error();
-      const result = await response.json();
-      const topic = guidanceTopics.find(([, ids]) => ids.includes(result.protocol_id));
-      if (/^(?:pressure|pressure review)\??$/i.test(question)) {
-        show([guidanceTopics[1], guidanceTopics[3]]);
-        status.textContent = 'Which pressure do you mean? Choose a demo checklist.';
-      } else if (!topic || typeof result.confidence !== 'number' || result.confidence < 0.35 || result.note) {
-        show(guidanceTopics);
-        status.textContent = 'No clear checklist match. Choose an onboard demo checklist.';
-      } else {
-        show([topic]);
-        status.textContent = 'Suggested by AETHER · Demo checklist v1';
-      }
-    } catch {
-      show(guidanceTopics);
-      status.textContent = 'AETHER is unavailable. Choose an onboard demo checklist.';
-    } finally { button.disabled = false; }
-  };
+function showConcernProcedure(finding) {
+  const procedure = procedureForConcern(finding);
+  const panel = $('#dialog-body .guidance');
+  panel.innerHTML = '<h3>' + escape(procedure.title) + '</h3><ol>' +
+    procedure.steps.map(step => '<li>' + escape(step) + '</li>').join('') + '</ol>';
+  const evidence = document.createElement('p');
+  evidence.textContent = 'Procedure version: ' + procedure.version + ' (fictional demo)' +
+    (finding.procedure ? '. Imported procedure ' + finding.procedure.record_id + ' ' + finding.procedure.procedure_version + ': ' + finding.procedure.text : '');
+  $('#dialog-body').append(evidence);
 }
 function eventDialog(id) {
   const event = profile().events.find(item => item.id === id);
-  modal('Crew event & onboard guidance', '<p class="status-label urgent-text">' + (event.urgent ? '⬣ Act now' : '△ Review') + '</p><h3>' + escape(event.text) + '</h3>' + (event.actions || []).map(action => '<p class="event-action"><strong>' + utc(action.time) + '</strong><br>' + escape(action.text || 'Acknowledged') + '</p>').join('') + '<p>' + utc(event.time) + ' · Crew report</p><div class="guidance"><h3>Contact the crew medical officer directly</h3><p>Follow the mission’s approved onboard procedure for this event. No mission procedure has been loaded into this prototype.</p><p>Ground delivery and sensor confirmation may be unavailable. This screen cannot call for help.</p></div><form><label>Outcome or follow-up<textarea name="outcome" maxlength="1000" placeholder="What action was taken and what remains due?"></textarea></label><label>Record action<select name="action"><option value="ack">Acknowledge and keep open</option><option value="close">Close with outcome</option></select></label>' + formEnd('Save event update'), async fields => {
+  modal('Demo procedure', '<p class="status-label urgent-text">' + (event.urgent ? '⬣ Act now' : '△ Review') + '</p><h3>' + escape(event.text) + '</h3>' + (event.actions || []).map(action => '<p class="event-action"><strong>' + utc(action.time) + '</strong><br>' + escape(action.text || 'Acknowledged') + '</p>').join('') + '<p>' + utc(event.time) + ' · Crew report</p><div class="guidance"></div><form><label>Outcome or follow-up<textarea name="outcome" maxlength="1000" placeholder="What action was taken and what remains due?"></textarea></label><label>Record action<select name="action"><option value="ack">Acknowledge and keep open</option><option value="close">Close with outcome</option></select></label>' + formEnd('Save event update'), async fields => {
     await changeProfile(data => updateEvent(data.events.find(item => item.id === id), fields.get('action'), fields.get('outcome'), new Date().toISOString()));
     toast('Event updated onboard.');
   });
+  showConcernProcedure(event);
+  focusProcedure();
 }
 function sleepFollowup() {
   const saved = profile().followups.find(task => task.type === 'sleep' && task.day === profile().day);
@@ -774,11 +763,12 @@ function sleepFollowup() {
   });
 }
 function taskOutcome(id) {
-  modal('Record follow-up outcome', '<form><label>Outcome<textarea name="outcome" required maxlength="1000"></textarea></label>' + formEnd('Close follow-up'), async fields => {
+  modal('Follow-up procedure', '<div class="guidance"><h3>Demo follow-up checklist v1</h3><p>Review the assigned follow-up, record what was done and the result, then close it when the work is complete.</p></div><form><label>Outcome<textarea name="outcome" required maxlength="1000"></textarea></label>' + formEnd('Close follow-up'), async fields => {
     if (!fields.get('outcome').trim()) throw Error('Enter an outcome.');
     await changeProfile(data => { data.followups.find(task => task.id === id).outcome = fields.get('outcome').trim(); });
     toast('Follow-up closed with outcome.');
   });
+  focusProcedure();
 }
 function history(initial) {
   modal('Observations & seven-day trends', '<label>Indicator<select id="trend-key">' + [...Object.entries(metrics).map(([key, field]) => [key, field.label]), ['mood', 'Mood']].map(([key, label]) => '<option value="' + key + '" ' + (key === initial ? 'selected' : '') + '>' + label + '</option>').join('') + '</select></label><div id="trend"></div>');
@@ -859,7 +849,7 @@ function bindMissionControls() {
 function missionFindingDialog(finding) {
   const mission = missionFor(profile());
   const stored = mission.actions?.[finding.id];
-  modal('Mission evidence & crew action', '<h3>' + escape(finding.label) + '</h3><p>' + escape(finding.value) + ' ' + escape(finding.unit) + '</p><p>' + escape(finding.detail) + '</p><p class="small">Evaluated at ' + utc(finding.evaluationTime) + '</p><details><summary>Source records and rule</summary><p>' + escape(finding.evidenceIds.join(', ')) + '</p><p>' + escape(finding.rule) + '</p><p>' + escape(finding.reference) + '</p></details><div class="guidance"><h3>' + escape(finding.procedure?.record_id || 'Crew review') + ' · ' + escape(finding.procedure?.procedure_version || 'Demo v1') + '</h3><p>' + escape(finding.procedure?.text || 'Verify the source data and request crew review. Record the next action.') + '</p></div>' +
+  modal('Demo procedure', '<h3>' + escape(finding.label) + '</h3><p>' + escape(finding.value) + ' ' + escape(finding.unit) + '</p><p>' + escape(finding.detail) + '</p><p class="small">Evaluated at ' + utc(finding.evaluationTime) + '</p><details><summary>Source records and rule</summary><p>Observation ' + utc(finding.record.time) + '</p>' + sourceDetails(finding.record, finding.rule) + '<p>' + escape(finding.evidenceIds.join(', ')) + '</p><p>' + escape(finding.rule) + '</p><p>' + escape(finding.reference) + '</p></details><div class="guidance"></div>' +
     (stored?.actions || []).map(action => '<p>' + utc(action.time) + ' · ' + escape(action.owner) + ' · ' + escape(action.note) + '</p>').join('') +
     '<form><label>Responsible crew member<input name="owner" required maxlength="100" value="A-08"></label><label>Action or result<textarea name="note" required maxlength="1000"></textarea></label><label>Assign next check (UTC, optional)<input type="datetime-local" name="due"></label>' +
     (finding.taskId ? '<label class="checkbox"><input type="checkbox" name="complete">Complete this task or crew assessment with the recorded result</label>' : '') + formEnd('Save mission action'), async fields => {
@@ -871,7 +861,8 @@ function missionFindingDialog(finding) {
       });
       toast('Mission action saved locally.');
     });
-  bindGuidanceSearch(finding);
+  showConcernProcedure(finding);
+  focusProcedure();
 }
 function supportRequest() {
   modal('Request a crew check-in', '<form><label>Recipient<input name="recipient" value="A-08" required maxlength="100"></label><label>Private support note<textarea name="note" required maxlength="1000"></textarea></label>' + formEnd('Save support request'), async fields => {

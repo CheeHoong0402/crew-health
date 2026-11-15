@@ -81,9 +81,11 @@ Advanced legacy files with explicit acquisition metadata remain readable for com
 
 ## Dashboard and action workflows
 
-From a reading or mission finding, open **Review & record action → Find guidance**. Search by topic, open the suggested demo checklist, then record the action in the same dialog. The search sends only the entered phrase to the local AETHER demo server. When the server is unavailable, choose a cached checklist directly. For offline tablets the Python service must run on the same device for model search to work.
+Attention cards show health concerns, a semicircular gauge for measurements with a configured demo reference, and **Open procedure**. Gauges label their scale, reference and absolute deviation. Single-limit rules show only the configured boundary; the reference band does not establish overall health. Historical interval episodes show their most extreme recorded interval value, not an average across the episode. Data-quality warnings, stale or missing logs, task reminders and handoff status remain in the system evidence and Log. Open procedure shows the cached checklist and action form immediately; evidence and previous actions are collapsed. Completed follow-ups remain in the Log.
 
-To enable search on Windows, set up the Python environment once using the first two commands. Then run `npm start` from the repository root whenever you use the dashboard. It starts the local AETHER service if needed. Allow the models to load before searching. The scikit-learn version matches the saved classifier.
+**Open procedure** automatically selects the local demo checklist for the finding's body system, including a separate private-support checklist. The dialog shows the named procedure and numbered steps immediately, with action recording below. Evidence retains the local version and any imported procedure. The dashboard requires no search phrase or model request to open these procedures.
+
+For the separate optional AETHER API on Windows, set up the Python environment using the first two commands. Then run `npm start` from the repository root. It starts the local AETHER service if needed. The scikit-learn version matches the saved classifier.
 
 ```powershell
 python -m venv .venv

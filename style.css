@@ -76,6 +76,26 @@ main { max-width: 1352px; margin: auto; padding: 18px 36px 64px; }
 .alert.urgent .wide { border-color: #c0929d; background: #fff8fa; color: #8d2c42; }
 .finding-value { font-size: 35px; letter-spacing: -1px; font-weight: 550; }
 .finding-value small { font-size: 15px; letter-spacing: 0; }
+.attention-content .alert { display: grid; gap: 16px; }
+.attention-content .alert h3 { margin: 0; }
+.queue-status { margin: 0; font-size: 14px; color: var(--ink); }
+.finding-gauge { margin: 0; text-align: center; }
+.finding-gauge svg { display: block; width: min(100%, 240px); margin: 0 auto -8px; overflow: visible; }
+.finding-gauge svg path { fill: none; stroke-width: 22px; }
+.finding-gauge .gauge-reference { stroke: #5e9274; }
+.finding-gauge .gauge-review { stroke: #c08b41; }
+.finding-gauge .gauge-needle { stroke: var(--ink); stroke-width: 4px; stroke-linecap: round; }
+.gauge-hub { fill: var(--ink); }
+.gauge-tick { fill: var(--ink); font: 11px Arial, sans-serif; }
+.finding-gauge figcaption { display: grid; gap: 5px; font-size: 12px; color: var(--ink); }
+.finding-gauge figcaption strong { font-size: 25px; font-weight: 600; }
+.gauge-deviation { font-weight: 600; }
+.attention-content .alert .wide { font-size: 13px; min-height: 44px; }
+@media (forced-colors: active) {
+  .finding-gauge .gauge-reference { stroke: GrayText; stroke-dasharray: 3 3; }
+  .finding-gauge .gauge-review, .finding-gauge .gauge-needle { stroke: CanvasText; }
+  .gauge-hub, .gauge-tick { fill: CanvasText; }
+}
 .owner, .evidence-tag { font-size: 11px; color: #675a4b; margin-top: 10px; display: block; }
 .urgent .owner, .urgent .evidence-tag { color: #815664; }
 .reading-finding[data-locate] { cursor: pointer; }

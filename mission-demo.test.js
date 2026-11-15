@@ -13,6 +13,45 @@ async function fixture() {
   mission.evaluationTime = scenarioTime(rows);
   return { rows, state, profile, mission };
 }
+test('numeric gauges use explicit source rules and never graph missing-data statuses as measurements', async () => {
+  const { mission, profile } = await fixture();
+  const findings = evaluateMission(mission, profile);
+  const cabin = findings.find(item => item.id.startsWith('mission-cabin-') && !item.id.startsWith('mission-cabin-point-') && item.range?.unit === 'ppm');
+  assert.equal(cabin.range.high, 5000);
+  assert.equal(cabin.range.low, null);
+  const samples = mission.records.filter(row => cabin.evidenceIds.includes(row.record_id) && row.quantity === 'co2' && row.record_type === 'measurement');
+  assert.equal(cabin.range.value, Math.max(...samples.map(row => +row.value)));
+  assert.equal(cabin.range.peak, samples.length > 1);
+  mission.records.push({ ...samples[0], record_id: 'EXTRA-CO2', value: String(+samples[0].value + 50) });
+  const updated = evaluateMission(mission, profile).find(item => item.id === cabin.id);
+  assert.equal(updated.range.value, +samples[0].value + 50);
+  assert.ok(updated.range.peak);
+  assert.ok(findings.filter(item => item.id.startsWith('mission-freshness-')).every(item => item.range === null));
+  const dose = findings.find(item => item.id.startsWith('mission-dose-'));
+  assert.equal(dose.range.value, 24);
+  assert.equal(dose.range.high, 20);
+});
+
+test('attention concerns exclude stale logs, instrument gaps, task reminders and handoff status', async () => {
+  const { mission, profile } = await fixture();
+  const findings = evaluateMission(mission, profile);
+  for (const prefix of ['mission-freshness-', 'mission-task-', 'mission-handoff-']) {
+    const items = findings.filter(item => item.id.startsWith(prefix));
+    assert.ok(items.length, prefix);
+    assert.ok(items.every(item => !item.healthConcern), prefix);
+  }
+  const instrument = mission.records.find(row => row.quantity === 'personal_dose_equivalent' && row.record_type === 'measurement');
+  instrument.calibration_status = 'unverified';
+  const recalculated = evaluateMission(mission, profile);
+  const verification = recalculated.find(item => item.id === 'mission-instrument-quality');
+  assert.ok(verification);
+  assert.equal(verification.healthConcern, false);
+  assert.ok(recalculated.filter(item => item.id.startsWith('mission-coverage-')).every(item => !item.healthConcern));
+  for (const prefix of ['mission-case-', 'mission-sleep-', 'mission-support-', 'mission-gravity-', 'mission-cabin-']) {
+    const items = findings.filter(item => item.id.startsWith(prefix));
+    assert.ok(items.length && items.every(item => item.healthConcern), prefix);
+  }
+});
 test('manual editor CSV and uploaded CSV preserve every source field and complete coverage', async () => {
   const {rows} = await fixture();
   const roundtrip = await parseCsv(missionCsv(rows));
@@ -25,6 +64,20 @@ test('manual editor CSV and uploaded CSV preserve every source field and complet
   assert.ok(demoCoverage(namespace, 'A-08').some(item => !item.complete));
   assert.notEqual(state[target].missionId, rows[0].mission_id);
   assert.equal(namespace[0].text, rows[0].text);
+});
+
+test('incident findings identify the reported problem and preserve review state across actions', async () => {
+  const { mission, profile } = await fixture();
+  const incident = mission.records.find(row => row.record_type === 'incident' && row.astronaut_id === profile.astronautId);
+  let finding = evaluateMission(mission, profile).find(row => row.taskId === incident.record_id);
+  assert.equal(finding.label, incident.text.trim());
+  assert.equal(finding.value, 'Crew review required');
+  assert.equal(finding.urgent, incident.status === 'open');
+  recordMissionAction(mission, finding, 'Demo review recorded', 'A-08', '', mission.evaluationTime);
+  finding = evaluateMission(mission, profile).find(row => row.id === finding.id);
+  assert.equal(finding.value, 'Action recorded; follow-up remains open');
+  incident.text = '';
+  assert.equal(evaluateMission(mission, profile).find(row => row.id === finding.id).label, 'Onboard case requires crew review');
 });
 
 test('radiation reproduces coverage arithmetic and excludes overlapping or faulty doses', async () => {

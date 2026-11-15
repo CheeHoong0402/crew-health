@@ -120,9 +120,11 @@ For more detail use the [Five Hazards Implementation Plan](./Five%20Hazards%20Im
 
 ## Shipped integrated demo
 
+Attention cards show health concerns only, using semicircular demo-reference gauges for numeric findings and short status text for reported concerns. Data-quality warnings, freshness, coverage gaps and administrative tasks stay in system evidence and the Log. Procedure buttons focus the local checklist and action form, with evidence and previous actions collapsed. Keep gauge bounds tied to the applicable rule; never infer thresholds from display text.
+
 The dashboard server starts the local AETHER service when the project Python environment is installed.
 
-Finding dialogs offer optional checklist search through the loopback AETHER demo server on port 8000 (`POST /ask`). Send only the search phrase. Display local versioned demo guidance and keep the manual checklist menu available offline. Search does not evaluate telemetry or change alert severity.
+Finding and event dialogs automatically display the applicable local demo procedure from `device-config.js`, selected by body system with separate support-request handling. Show the procedure title and numbered steps directly. Store the version and imported procedure in collapsed evidence. There is no manual guidance search in these dialogs and no model request when opening a procedure.
 
 `mission-demo.js` owns current source revisions, 17-area coverage, dose reconciliation, sleep opportunity, gravity timing, cabin episodes/freshness, tasks/actions and selective handoff. Data entry groups ordinary record types rather than the five hazards; hazard evaluation remains in the dashboard logic. `demo-editor.js` edits every field of the complete artificial fixture without a new dependency. Both manual and combined CSV paths serialize, validate, stage and commit using the same parser/importer. The 142-row example fills seven-day routine trends and all 12 system panels for A-07. A-08 remains a deliberate partial profile for shared cabin verification.
 
