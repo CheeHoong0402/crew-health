@@ -60,6 +60,15 @@ export function analyseMission(mission, profile) {
   const actions = mission.actions || {};
   function add(id, system, label, value, reference, evidence, procedureId, options = {}) {
     const source = evidence[0];
+    const rule = evidence.find(row => row.record_type === 'demo_rule' && row.unit === options.unit &&
+      ['<', '>'].includes(row.comparison) && row.value !== '' && Number.isFinite(+row.value));
+    const samples = rule ? evidence.filter(row => row.record_type === 'measurement' && row.quantity === rule.quantity && row.unit === rule.unit) : [];
+    const numericValue = typeof value === 'number' ? value :
+      samples.length ? (rule.comparison === '>' ? Math.max(...samples.map(row => +row.value)) : Math.min(...samples.map(row => +row.value))) : null;
+    const range = options.range || (rule && Number.isFinite(numericValue) ? {
+      value: numericValue, low: rule.comparison === '<' ? +rule.value : null,
+      high: rule.comparison === '>' ? +rule.value : null, unit: rule.unit, peak: samples.length > 1
+    } : null);
     findings.push({
       id: 'mission-' + id, key: 'mission', missionFinding: true, system, label, value, reference,
       unit: options.unit || '', rule: options.rule || 'Demo mission evaluation v1',
@@ -67,7 +76,8 @@ export function analyseMission(mission, profile) {
       evidenceIds: evidence.map(row => row.record_id), procedureId,
       procedure: procedureFor(rows, procedureId), detail: options.detail || '',
       astronautId: options.astronautId || source?.astronaut_id || '', restricted: options.restricted || source?.visibility === 'restricted-support' || source?.record_type === 'support_request',
-      taskId: options.taskId, urgent: options.urgent || false,
+      taskId: options.taskId, urgent: options.urgent || false, range,
+      healthConcern: Boolean(range || evidence.some(row => ['incident', 'symptom', 'support_request'].includes(row.record_type))),
       review: actions['mission-' + id], evaluationTime: now
     });
   }
@@ -127,7 +137,7 @@ export function analyseMission(mission, profile) {
   const sleep = lastQuantity(own, 'sleep_hours');
   const opportunity = own.find(row => row.quantity === 'sleep_opportunity_hours' && row.mission_day === sleep?.mission_day && usable(row));
   if (sleep && opportunity && +sleep.value < 7) {
-    add('sleep-' + sleep.record_id, 'sleep', +opportunity.value <= +sleep.value ? 'Review available rest time' : 'Review interrupted sleep', +sleep.value, 'Fictional minimum 7 h; available ' + opportunity.value + ' h', [sleep, opportunity], 'PROC-SLEEP', { unit: 'h', detail: +opportunity.value <= +sleep.value ? 'Recorded sleep used the full available rest period. Review the duty schedule.' : 'Available rest exceeded actual sleep. Record interruptions and review the next rest period.' });
+    add('sleep-' + sleep.record_id, 'sleep', +opportunity.value <= +sleep.value ? 'Review available rest time' : 'Review interrupted sleep', +sleep.value, 'Fictional minimum 7 h; available ' + opportunity.value + ' h', [sleep, opportunity], 'PROC-SLEEP', { unit: 'h', range: { value: +sleep.value, low: 7, high: null, unit: 'h' }, detail: +opportunity.value <= +sleep.value ? 'Recorded sleep used the full available rest period. Review the duty schedule.' : 'Available rest exceeded actual sleep. Record interruptions and review the next rest period.' });
   }
   for (const request of own.filter(row => row.record_type === 'support_request')) {
     if (actions['task-' + request.record_id]?.status !== 'completed' && request.status !== 'completed') add('support-' + request.record_id, 'sleep', 'Crew check-in requested', request.status, 'Request remains independent of mood and sleep', [request], request.procedure_id, { taskId: request.record_id, detail: 'Recipient ' + request.recipient_id + '. Private support notes are excluded from ground handoff exports.' });
@@ -172,7 +182,12 @@ export function analyseMission(mission, profile) {
     if (status === 'completed') continue;
     add('task-' + task.record_id, task.body_system || 'operations', seconds(now, task.due_at_utc) >= 0 ? 'Crew action overdue' : 'Crew action scheduled', task.due_at_utc, 'Owner ' + task.owner_id, [task], task.procedure_id || 'PROC-CASE', { taskId: task.record_id, detail: task.text });
   }
-  for (const incident of own.filter(row => row.record_type === 'incident' && actions['task-' + row.record_id]?.status !== 'completed')) add('case-' + incident.record_id, incident.body_system || 'lungs', 'Onboard case requires crew review', incident.status, 'Follow the local demo checklist', [incident], incident.procedure_id, { urgent: incident.status === 'open', detail: incident.text, taskId: incident.record_id });
+  for (const incident of own.filter(row => row.record_type === 'incident' && actions['task-' + row.record_id]?.status !== 'completed')) {
+    const reviewed = actions['mission-case-' + incident.record_id]?.actions?.length;
+    add('case-' + incident.record_id, incident.body_system || 'lungs', incident.text?.trim() || 'Onboard case requires crew review',
+      reviewed ? 'Action recorded; follow-up remains open' : 'Crew review required', 'Follow the local demo checklist', [incident], incident.procedure_id,
+      { urgent: incident.status === 'open', detail: incident.text, taskId: incident.record_id });
+  }
   for (const handoff of own.filter(row => row.record_type === 'handoff')) add('handoff-' + handoff.record_id, 'operations', 'Ground handoff status', mission.exports?.[handoff.record_id] ? 'Exported · delivery unconfirmed' : handoff.status, 'Ground receipt requires explicit confirmation', [handoff], 'PROC-CASE', { detail: handoff.text });
   for (const task of (mission.manualTasks || []).filter(task => !task.astronautId || task.astronautId === who)) {
     if (actions['task-' + task.id]?.status === 'completed') continue;

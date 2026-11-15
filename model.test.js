@@ -1,6 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { freshProfile, sleepFlag, validateRecord, latest, validatePersonal } from './model.js';
+import { freshProfile, sleepFlag, validateRecord, latest, validatePersonal, gaugeScale } from './model.js';
+
+test('gauge positions preserve range boundaries, units of deviation and extreme readings', () => {
+  const hot = gaugeScale(38.5, 36, 37.5);
+  assert.equal(hot.deviation, 1);
+  assert.ok(hot.position > hot.end && hot.position < 1);
+  assert.ok(hot.min < 36 && hot.max > 38.5);
+  assert.equal(gaugeScale(36, 36, 37.5).deviation, 0);
+  assert.equal(gaugeScale(37.5, 36, 37.5).deviation, 0);
+  const low = gaugeScale(5, 7, null);
+  assert.equal(low.deviation, -2);
+  assert.ok(low.position < low.start);
+  assert.equal(low.end, 1);
+  assert.equal(gaugeScale(0, null, 0).deviation, 0);
+  const extreme = gaugeScale(1000000, null, 5000);
+  assert.ok(extreme.position < 1 && extreme.max > 1000000);
+  for (const value of ['', '38.5', null, NaN, Infinity]) assert.equal(gaugeScale(value, 36, 37.5), null);
+  assert.equal(gaugeScale(5, null, null), null);
+  assert.equal(gaugeScale(5, 7, 7), null);
+});
 
 test('sleep follow-up respects missing days, corrections and current mission day', () => {
   const profile = freshProfile(true);

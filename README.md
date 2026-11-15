@@ -81,6 +81,18 @@ Advanced legacy files with explicit acquisition metadata remain readable for com
 
 ## Dashboard and action workflows
 
+Attention cards show health concerns, a semicircular gauge for measurements with a configured demo reference, and **Open procedure**. Gauges label their scale, reference and absolute deviation. Single-limit rules show only the configured boundary; the reference band does not establish overall health. Historical interval episodes show their most extreme recorded interval value, not an average across the episode. Data-quality warnings, stale or missing logs, task reminders and handoff status remain in the system evidence and Log. Open procedure shows the cached checklist and action form immediately; evidence and previous actions are collapsed. Completed follow-ups remain in the Log.
+
+**Open procedure** automatically selects the local demo checklist for the finding's body system, including a separate private-support checklist. The dialog shows the named procedure and numbered steps immediately, with action recording below. Evidence retains the local version and any imported procedure. The dashboard requires no search phrase or model request to open these procedures.
+
+For the separate optional AETHER API on Windows, set up the Python environment using the first two commands. Then run `npm start` from the repository root. It starts the local AETHER service if needed. The scikit-learn version matches the saved classifier.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install scikit-learn==1.9.1 pillow jsonschema
+npm start
+```
+
 The dashboard integrates warnings with body systems, inline anatomy circles, the attention queue and right-hand readings/trends. Use the system list when WebGL is unavailable. The separate **Log** page retains original observations, corrections, imported evidence and recorded actions.
 
 - **Radiation:** non-overlapping compatible dose segments, continuous-counter differences, interval-average rate integration, spacewalk coverage and recorded mission total. Faults, unverified instrument status and overlaps do not count. The sample spacewalk gives 24 uSv over 120 minutes; removing RAD-GAP-FILL leaves 16 uSv and 80 minutes missing.
